@@ -1,4 +1,6 @@
-# MIT License
+# -*- coding: utf-8 -*-
+# 
+# # MIT License
 # 
 # Copyright (c) 2020 Mike Simms
 # 
@@ -26,3 +28,6 @@ class ParseModule(object):
     def __init__(self, parse_module_name):
         self.parse_module_name = parse_module_name
         super(ParseModule, self).__init__()
+
+    def parse(self, soup):
+        pass

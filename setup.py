@@ -1,9 +1,9 @@
 from setuptools import setup, find_packages
 
-requirements = ['requests', 'beautifulsoup4']
+requirements = ['requests', 'beautifulsoup4', 'url-normalize']
 
 setup(
-    name='webcrawler',
+    name='crawler',
     version='1.0.0',
     description='',
     url='https://github.com/msimms/Crawler',

@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+# 
 # MIT License
 # 
 # Copyright (c) 2020 Mike Simms
@@ -20,8 +22,13 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-class BrewersFriend(object):
+from bs4 import BeautifulSoup
+
+class BF(object):
     """Module for parsing web pages from brewersfriend.com."""
 
     def __init__(self):
-        super(BrewersFriend, self).__init__()
+        super(BF, self).__init__()
+
+    def parse(self, soup):
+        pass
