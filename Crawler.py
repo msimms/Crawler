@@ -58,6 +58,7 @@ class Crawler(object):
         self.max_depth = max_depth
         self.verbose = verbose
         self.running = True
+        self.recent_urls = [] # Quick hack so we don't keep hitting the same URLs
         if os.path.isfile(parse_module_name):
             if sys.version_info[0] < 3:
                 self.parse_module = imp.load_source("", parse_module_name)
@@ -77,9 +78,17 @@ class Crawler(object):
         if self.running is False:
             return
 
+        # If we've exceeded the maximum depth.
+        if current_depth >= self.max_depth:
+            return
+
         # Canonicalize the URL.
         url = urljoin(parent_url, child_url)
         url = url_normalize(url)
+
+        # If we've been here before.
+        if url in self.recent_urls:
+            return
 
         # Download the page from the URL.
         response = requests.get(url)
@@ -91,11 +100,14 @@ class Crawler(object):
 
             # Parse the page.
             soup = BeautifulSoup(response.content, 'html5lib')
+            if self.parse_module is not None:
+                self.parse_module.parse(soup)
 
-            # Look for new links.
-            if self.max_depth is > 0 or current_depth < self.max_depth:
-                for a in soup.find_all('a', href=True):
-                    self.crawl_url(url, a['href'], current_depth + 1)
+            # Crawl new links.
+            new_url_list = soup.find_all('a', href=True)
+            new_url_list = list(dict.fromkeys(new_url_list)) # Remove duplicates
+            for a in new_url_list:
+                self.crawl_url(url, a['href'], current_depth + 1)
 
 def main():
     """Entry point for the app."""
@@ -127,11 +139,11 @@ def main():
 
     # Crawl a file.
     if len(args.file) > 0:
-        crawler.crawl_file(args.file)
+        g_crawler.crawl_file(args.file)
 
     # Crawl a URL.
     if len(args.url) > 0:
-        crawler.crawl_url("", args.url, 0)
+        g_crawler.crawl_url("", args.url, 0)
 
 if __name__ == "__main__":
     main()
