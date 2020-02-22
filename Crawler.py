@@ -29,6 +29,7 @@ import signal
 import sys
 from bs4 import BeautifulSoup
 from url_normalize import url_normalize
+import CrawlerDatabase
 
 g_crawler = None
 
@@ -52,18 +53,27 @@ def signal_handler(signal, frame):
 class Crawler(object):
     """Class containing the URL handlers."""
 
-    def __init__(self, rate_secs, parse_module_name, max_depth, verbose):
+    def __init__(self, rate_secs, parse_module_name, mongodb_addr, max_depth, verbose):
         self.rate_secs = rate_secs
         self.parse_module = None
+        self.parser = None
+        self.mongodb = None
         self.max_depth = max_depth
         self.verbose = verbose
         self.running = True
         self.recent_urls = [] # Quick hack so we don't keep hitting the same URLs
+
+        # Connect to the database.
+        if mongodb_addr is not None:
+            self.mongodb = CrawlerDatabase.MongoDatabase()
+
+        # Load the module that will parse the pages that we download.
         if os.path.isfile(parse_module_name):
             if sys.version_info[0] < 3:
                 self.parse_module = imp.load_source("", parse_module_name)
             else:
                 self.parse_module = mymodule = SourceFileLoader('modname', parse_module_name).load_module()
+            self.parser = self.parse_module.create(self.mongodb)
         super(Crawler, self).__init__()
 
     def crawl_file(self, file_name):
@@ -119,6 +129,7 @@ def main():
     parser.add_argument("--rate", type=int, default=0, help="Rate, in seconds, at which to crawl.", required=False)
     parser.add_argument("--max-depth", type=int, default=None, help="Maximum crawl depth.", required=False)
     parser.add_argument("--parse-module", default="", help="Python module that will parse each page.", required=False)
+    parser.add_argument("--mongodb-addr", default="", help="Address of the mongo database.", required=False)
     parser.add_argument("--verbose", action="store_true", default=False, help="Enables verbose output.", required=False)
 
     try:
@@ -132,7 +143,7 @@ def main():
         print("Neither a file nor a URL to crawl was specified.")
         sys.exit(1)
 
-    g_crawler = Crawler(args.rate, args.parse_module, args.max_depth, args.verbose)
+    g_crawler = Crawler(args.rate, args.parse_module, args.mongodb_addr, args.max_depth, args.verbose)
 
     # Register the signal handler.
     signal.signal(signal.SIGINT, signal_handler)

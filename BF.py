@@ -22,13 +22,19 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import CrawlerDatabase
+import ParseModule
 from bs4 import BeautifulSoup
 
-class BF(object):
+def create(db):
+    return BF(db)
+
+class BF(ParseModule.ParseModule):
     """Module for parsing web pages from brewersfriend.com."""
 
-    def __init__(self):
-        super(BF, self).__init__()
+    def __init__(self, db):
+        self.db = db
+        ParseModule.ParseModule.__init__(self)
 
     def parse(self, soup):
         pass
