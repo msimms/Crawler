@@ -23,6 +23,7 @@
 # SOFTWARE.
 
 import argparse
+import logging
 import os
 import requests
 import signal
@@ -31,7 +32,9 @@ from bs4 import BeautifulSoup
 from url_normalize import url_normalize
 import CrawlerDatabase
 
-g_crawler = None
+ERROR_LOG = 'error.log'
+
+g_crawler = None # Allows us to get the main object from the signal handler
 
 # Import things so that they have the same name regardless of whether we are using python2 or python3.
 if sys.version_info[0] < 3:
@@ -66,6 +69,7 @@ class Crawler(object):
         # Connect to the database.
         if mongodb_addr is not None:
             self.mongodb = CrawlerDatabase.MongoDatabase()
+            self.mongodb.connect()
 
         # Load the module that will parse the pages that we download.
         if os.path.isfile(parse_module_name):
@@ -74,12 +78,24 @@ class Crawler(object):
             else:
                 self.parse_module = mymodule = SourceFileLoader('modname', parse_module_name).load_module()
             self.parser = self.parse_module.create(self.mongodb)
+
         super(Crawler, self).__init__()
 
     def crawl_file(self, file_name):
         """Starts crawling from a file."""
+
         with open(file_name, 'r') as f:
-            pass
+            # Read the entire contents of the file.
+            content = f.read()
+
+            # Parse the page.
+            soup = BeautifulSoup(content, 'html5lib')
+
+            # Crawl new links.
+            new_url_list = soup.find_all('a', href=True)
+            new_url_list = list(dict.fromkeys(new_url_list)) # Remove duplicates
+            for a in new_url_list:
+                self.crawl_url("", a['href'], 0)
 
     def crawl_url(self, parent_url, child_url, current_depth):
         """Crawls, starting at the given URL, up to the maximum depth."""
@@ -110,14 +126,18 @@ class Crawler(object):
 
             # Parse the page.
             soup = BeautifulSoup(response.content, 'html5lib')
-            if self.parse_module is not None:
-                self.parse_module.parse(soup)
+            if self.parser is not None:
+                self.parser.parse(url, soup)
+
+            # Harvest new links.
+            new_url_list = []
+            for a in soup.find_all('a', href=True):
+                new_url_list.append(a['href'])
+            new_url_list = list(dict.fromkeys(new_url_list)) # Remove duplicates
 
             # Crawl new links.
-            new_url_list = soup.find_all('a', href=True)
-            new_url_list = list(dict.fromkeys(new_url_list)) # Remove duplicates
-            for a in new_url_list:
-                self.crawl_url(url, a['href'], current_depth + 1)
+            for new_url in new_url_list:
+                self.crawl_url(url, new_url, current_depth + 1)
 
 def main():
     """Entry point for the app."""
@@ -147,6 +167,9 @@ def main():
 
     # Register the signal handler.
     signal.signal(signal.SIGINT, signal_handler)
+
+    # Configure the error logger.
+    logging.basicConfig(filename=ERROR_LOG, filemode='w', level=logging.DEBUG, format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
 
     # Crawl a file.
     if len(args.file) > 0:

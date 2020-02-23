@@ -25,9 +25,8 @@
 class ParseModule(object):
     """Base class for describing a parse module."""
 
-    def __init__(self, parse_module_name):
-        self.parse_module_name = parse_module_name
+    def __init__(self):
         super(ParseModule, self).__init__()
 
-    def parse(self, soup):
+    def parse(self, url, soup):
         pass

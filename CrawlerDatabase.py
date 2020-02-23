@@ -30,6 +30,9 @@ from bson.objectid import ObjectId
 import pymongo
 import Database
 
+URL_KEY = 'url'
+LAST_VISIT_TIME_KEY = 'last visit time'
+BLOB_KEY = 'blob'
 
 class MongoDatabase(Database.Database):
 
@@ -41,7 +44,30 @@ class MongoDatabase(Database.Database):
         try:
             self.conn = pymongo.MongoClient('localhost:27017')
             self.database = self.conn['crawlerdb']
+            self.pages_collection = self.database['pages']
             return True
         except pymongo.errors.ConnectionFailure as e:
             self.log_error("Could not connect to MongoDB: %s" % e)
+        return False
+
+    def create_page(self, url, last_visit_time, blob):
+        try:
+            post = {URL_KEY: url, LAST_VISIT_TIME_KEY: last_visit_time, BLOB_KEY: blob}
+            self.pages_collection.insert(post)
+            return True
+        except:
+            self.log_error(traceback.format_exc())
+            self.log_error(sys.exc_info()[0])
+        return False
+
+    def update_page(self, url, last_visit_time, blob):
+        try:
+            page = self.pages_collection.find_one({URL_KEY: url})
+            if page is not None:
+                page[LAST_VISIT_TIME_KEY] = last_visit_time
+                page[BLOB_KEY] = blob
+                self.pages_collection.save(user)
+        except:
+            self.log_error(traceback.format_exc())
+            self.log_error(sys.exc_info()[0])
         return False

@@ -24,6 +24,7 @@
 
 import CrawlerDatabase
 import ParseModule
+import time
 from bs4 import BeautifulSoup
 
 def create(db):
@@ -36,5 +37,18 @@ class BF(ParseModule.ParseModule):
         self.db = db
         ParseModule.ParseModule.__init__(self)
 
-    def parse(self, soup):
-        pass
+    def parse(self, url, soup):
+        """Parses the contents downloaded from the URL, extracts the recipe, and stores it in the database."""
+
+        # Parse the recipe
+        blob = ""
+
+        # Store it.
+        self.db.create_page(url, time.time(), blob)
+
+def main():
+    """This is the entry point to use when performing analysis on the data that was crawled for this website."""
+    pass
+
+if __name__ == "__main__":
+    main()
