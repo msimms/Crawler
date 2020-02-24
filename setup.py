@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-requirements = ['requests', 'beautifulsoup4', 'url-normalize']
+requirements = ['requests', 'beautifulsoup4', 'url-normalize', 'html5lib']
 
 setup(
     name='crawler',
