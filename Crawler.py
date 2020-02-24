@@ -81,28 +81,43 @@ class Crawler(object):
 
         super(Crawler, self).__init__()
 
+    def crawl_content(self, url, content, current_depth):
+        """Starts crawling read from a file or URL."""
+
+        # Parse the page.
+        soup = BeautifulSoup(content, 'html5lib')
+        if self.parser is not None:
+            self.parser.parse(url, soup)
+
+        # Harvest new links.
+        new_url_list = []
+        for a in soup.find_all('a', href=True):
+            new_url_list.append(a['href'])
+        new_url_list = list(dict.fromkeys(new_url_list)) # Remove duplicates
+
+        # Crawl new links.
+        for new_url in new_url_list:
+
+            # If the crawling has been cancelled.
+            if self.running is False:
+                return
+
+            self.crawl_url(url, new_url, current_depth + 1)
+
     def crawl_file(self, file_name):
         """Starts crawling from a file."""
 
+        # Open the file.
         with open(file_name, 'r') as f:
+
             # Read the entire contents of the file.
             content = f.read()
 
-            # Parse the page.
-            soup = BeautifulSoup(content, 'html5lib')
-
-            # Crawl new links.
-            new_url_list = soup.find_all('a', href=True)
-            new_url_list = list(dict.fromkeys(new_url_list)) # Remove duplicates
-            for a in new_url_list:
-                self.crawl_url("", a['href'], 0)
+            # Crawl the content.
+            self.crawl_content("", content, 0)
 
     def crawl_url(self, parent_url, child_url, current_depth):
         """Crawls, starting at the given URL, up to the maximum depth."""
-
-        # If the crawling has been cancelled.
-        if self.running is False:
-            return
 
         # If we've exceeded the maximum depth.
         if current_depth >= self.max_depth:
@@ -121,23 +136,13 @@ class Crawler(object):
 
         # If downloaded....
         if response.status_code == 200:
+
+            # Print the output.
             if self.verbose:
                 print("Parsing " + url + "...")
 
-            # Parse the page.
-            soup = BeautifulSoup(response.content, 'html5lib')
-            if self.parser is not None:
-                self.parser.parse(url, soup)
-
-            # Harvest new links.
-            new_url_list = []
-            for a in soup.find_all('a', href=True):
-                new_url_list.append(a['href'])
-            new_url_list = list(dict.fromkeys(new_url_list)) # Remove duplicates
-
-            # Crawl new links.
-            for new_url in new_url_list:
-                self.crawl_url(url, new_url, current_depth + 1)
+            # Crawl the content.
+            self.crawl_content(url, response.content, current_depth)
 
 def main():
     """Entry point for the app."""
@@ -149,7 +154,7 @@ def main():
     parser.add_argument("--rate", type=int, default=0, help="Rate, in seconds, at which to crawl.", required=False)
     parser.add_argument("--max-depth", type=int, default=None, help="Maximum crawl depth.", required=False)
     parser.add_argument("--parse-module", default="", help="Python module that will parse each page.", required=False)
-    parser.add_argument("--mongodb-addr", default="", help="Address of the mongo database.", required=False)
+    parser.add_argument("--mongodb-addr", default="localhost:27017", help="Address of the mongo database.", required=False)
     parser.add_argument("--verbose", action="store_true", default=False, help="Enables verbose output.", required=False)
 
     try:
