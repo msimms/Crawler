@@ -67,6 +67,7 @@ class MongoDatabase(Database.Database):
                 page[LAST_VISIT_TIME_KEY] = last_visit_time
                 page[BLOB_KEY] = blob
                 self.pages_collection.save(user)
+                return True
         except:
             self.log_error(traceback.format_exc())
             self.log_error(sys.exc_info()[0])

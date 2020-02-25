@@ -24,9 +24,16 @@
 
 import CrawlerDatabase
 import ParseModule
+import sys
 import time
 from bs4 import BeautifulSoup
 
+# Import things so that they have the same name regardless of whether we are using python2 or python3.
+if sys.version_info[0] < 3:
+    import urlparse
+else:
+    import urllib.parse as urlparse
+    
 def create(db):
     return BF(db)
 
@@ -40,11 +47,19 @@ class BF(ParseModule.ParseModule):
     def parse(self, url, soup):
         """Parses the contents downloaded from the URL, extracts the recipe, and stores it in the database."""
 
+        # Ignore links from other sites.
+        parsed = urlparse.urlparse(url)
+        if parsed.netloc is not "brewersfriend.com":
+            return False
+
         # Parse the recipe
         blob = ""
 
         # Store it.
-        self.db.create_page(url, time.time(), blob)
+        visit_time = time.time()
+        if not self.db.create_page(url, visit_time, blob):
+            return self.db.update_page(url, visit_time, blob)
+        return True
 
 def main():
     """This is the entry point to use when performing analysis on the data that was crawled for this website."""

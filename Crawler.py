@@ -28,6 +28,7 @@ import os
 import requests
 import signal
 import sys
+import time
 from bs4 import BeautifulSoup
 from url_normalize import url_normalize
 import CrawlerDatabase
@@ -48,6 +49,9 @@ else:
 
 
 def signal_handler(signal, frame):
+    """Called when the interrupt signal is received."""
+    global g_crawler
+
     print("Exiting...")
     if g_crawler is not None:
         g_crawler.running = False
@@ -131,27 +135,41 @@ class Crawler(object):
         if url in self.recent_urls:
             return
 
-        # Download the page from the URL.
-        response = requests.get(url)
-
-        # If downloaded....
-        if response.status_code == 200:
-
-            # Print the output.
+        try:
+            # Wait.
+            time.sleep(self.rate_secs)
+            
+            # Download the page from the URL.
             if self.verbose:
-                print("Parsing " + url + "...")
+                print("Requesting data from " + url + "...")
+            response = requests.get(url)
 
-            # Crawl the content.
-            self.crawl_content(url, response.content, current_depth)
+            # If downloaded....
+            if response.status_code == 200:
+
+                # Print the output.
+                if self.verbose:
+                    print("Parsing " + url + "...")
+
+                # Crawl the content.
+                self.crawl_content(url, response.content, current_depth)
+
+            # Print the error.
+            elif self.verbose:
+                print("Received HTTP Error " + str(response.status_code) + ".")
+        except:
+            print("Exception requesting data.")
 
 def main():
     """Entry point for the app."""
+
+    global g_crawler
 
     # Parse command line options.
     parser = argparse.ArgumentParser()
     parser.add_argument("--file", default="", help="File to crawl.", required=False)
     parser.add_argument("--url", default="", help="URL to crawl.", required=False)
-    parser.add_argument("--rate", type=int, default=0, help="Rate, in seconds, at which to crawl.", required=False)
+    parser.add_argument("--rate", type=int, default=1, help="Rate, in seconds, at which to crawl.", required=False)
     parser.add_argument("--max-depth", type=int, default=None, help="Maximum crawl depth.", required=False)
     parser.add_argument("--parse-module", default="", help="Python module that will parse each page.", required=False)
     parser.add_argument("--mongodb-addr", default="localhost:27017", help="Address of the mongo database.", required=False)
