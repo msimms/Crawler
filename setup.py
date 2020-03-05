@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-requirements = ['requests', 'beautifulsoup4', 'url-normalize', 'html5lib']
+requirements = ['requests', 'beautifulsoup4', 'url-normalize', 'html5lib', 'pymongo']
 
 setup(
     name='crawler',
