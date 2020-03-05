@@ -25,7 +25,6 @@
 
 import logging
 import os
-import sqlite3
 
 class Database(object):
     """Base class for a database. Encapsulates common functionality."""
@@ -54,30 +53,3 @@ class Database(object):
         if null_index >= 0:
             return ""
         return "\"" + encodable.replace("\"", "\"\"") + "\""
-
-
-class SqliteDatabase(Database):
-    """Abstract Sqlite database implementation."""
-
-    def __init__(self, root_dir, file_name):
-        self.db_file_name = os.path.join(root_dir, file_name)
-        Database.__init__(self)
-
-    def connect(self):
-        """Inherited from the base class and unused."""
-        pass
-
-    def execute(self, sql):
-        """Executes the specified SQL query."""
-        try:
-            con = sqlite3.connect(self.db_file_name)
-            with con:
-                cur = con.cursor()
-                cur.execute(sql)
-                return cur.fetchall()
-        except:
-            self.log_error("Database error:\n\tfile = " + self.db_file_name + "\n\tsql = " + self.quote_identifier(sql))
-        finally:
-            if con:
-                con.close()
-        return None
