@@ -22,11 +22,22 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import bs4
+
 class ParseModule(object):
     """Base class for describing a parse module."""
 
     def __init__(self):
         super(ParseModule, self).__init__()
+
+    def find_html_tag(self, soup):
+        for child_item in list(soup.children):
+            if type(child_item) == bs4.element.Tag:
+                return child_item
+        return None
+
+    def find_body_tag(self, html_tag):
+        return html_tag.find('body')
 
     def parse(self, url, soup):
         pass

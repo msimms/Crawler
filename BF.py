@@ -24,6 +24,8 @@
 
 import CrawlerDatabase
 import ParseModule
+import argparse
+import requests
 import sys
 import time
 from bs4 import BeautifulSoup
@@ -49,21 +51,57 @@ class BF(ParseModule.ParseModule):
 
         # Ignore links from other sites.
         parsed = urlparse.urlparse(url)
-        if parsed.netloc is not "brewersfriend.com":
+        if parsed.netloc.find("www.brewersfriend.com") != 0:
+            print("Invalid network location: " + parsed.netloc)
             return False
 
-        # Parse the recipe
-        blob = ""
+        # Parse the recipe.
+        blob = {}
 
-        # Store it.
-        visit_time = time.time()
-        if not self.db.create_page(url, visit_time, blob):
-            return self.db.update_page(url, visit_time, blob)
+        # Find the fermentables (i.e. the grains).
+        grains_div = soup.find("div", {"id": "fermentables"})
+        if grains_div is None:
+            print("Failed to find the fermentables section.")
+            return False
+        grains_table = grains_div.find("table")
+        if grains_table is None:
+            print("Failed to find the fermentables table.")
+            return False
+
+        print(grains_table)
+
+        # Find the hop schedule.
+        hops_div = soup.find("div", {"id": "hops"})
+        if hops_div is None:
+            print("Failed to find the hops section.")
+        #print(hops_div)
+
+        if self.db is not None:
+
+            # Store it.
+            visit_time = time.time()
+            if not self.db.create_page(url, visit_time, blob):
+
+                # Page was not created, presumably because it already exists, so just update it.
+                return self.db.update_page(url, visit_time, blob)
+
+        # Page was created.
         return True
 
 def main():
-    """This is the entry point to use when performing analysis on the data that was crawled for this website."""
-    pass
+    """This is the entry point that is used to perform unit tests on this module."""
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--url", default="", help="URL to parse.", required=False)
+    args = parser.parse_args()
+
+    response = requests.get(args.url, headers={'User-Agent': 'Mozilla/5.0'})
+    if response.status_code == 200:
+        soup = BeautifulSoup(response.content, 'html5lib')
+        parser = BF(None)
+        parser.parse(args.url, soup)
+    else:
+        print("Received status invalid code: " + str(response.status_code))
 
 if __name__ == "__main__":
     main()

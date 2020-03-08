@@ -106,6 +106,7 @@ class Crawler(object):
             if self.running is False:
                 return
 
+            # Crawl the link.
             self.crawl_url(url, new_url, current_depth + 1)
 
     def crawl_file(self, file_name):
@@ -142,7 +143,7 @@ class Crawler(object):
             # Download the page from the URL.
             if self.verbose:
                 print("Requesting data from " + url + "...")
-            response = requests.get(url)
+            response = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
 
             # If downloaded....
             if response.status_code == 200:
