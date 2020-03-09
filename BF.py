@@ -149,6 +149,24 @@ class BF(ParseModule.ParseModule):
             hops.append(hop)
         recipe['hops'] = hops
 
+        # Find the yeasts section.
+        yeasts = []
+        yeasts_div = soup.find("div", {"id": "yeasts"})
+        if yeasts_div is None:
+            print("Failed to find the yeasts section.")
+        yeasts_table = yeasts_div.find("table")
+        if yeasts_table is None:
+            print("Failed to find the yeasts table.")
+            return False
+        yeasts_table_head = yeasts_table.find("thead")
+        if yeasts_table_head is None:
+            print("Failed to find the yeasts table head.")
+            return False
+        yeasts_table_row = yeasts_table_head.findAll("tr")
+        for row in yeasts_table_row:
+            yeasts.append(row.get_text().strip())
+        recipe['yeasts'] = yeasts
+
         # If we were given a database then store the results.
         if self.db is not None:
 
