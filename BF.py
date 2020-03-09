@@ -64,9 +64,7 @@ class BF(ParseModule.ParseModule):
 
         recipe = {}
         fermentable_titles = []
-        fermentables = []
         hop_titles = []
-        hops = []
 
         # Find the fermentables (i.e. the grains).
         grains_div = soup.find("div", {"id": "fermentables"})
@@ -101,13 +99,14 @@ class BF(ParseModule.ParseModule):
             return False
 
         # Parse the fermentables.
+        fermentables = []
         for row in grains_table_rows:
             fermentable = {}
             columns = row.findAll("td")
             for title, column in zip_func(fermentable_titles, columns):
                 fermentable[title] = column.get_text().strip()
             fermentables.append(fermentable)
-        print(fermentables)
+        recipe['grains'] = fermentables
 
         # Find the hop schedule.
         hops_div = soup.find("div", {"id": "hops"})
@@ -117,6 +116,18 @@ class BF(ParseModule.ParseModule):
         if hops_table is None:
             print("Failed to find the hops table.")
             return False
+
+        # Find the hops column titles.
+        hops_table_titles = hops_table.find("tr")
+        if hops_table_titles is None:
+            print("Failed to find the hops table column titles.")
+            return False
+        columns = hops_table_titles.findAll("th")
+        for column in hops_table_titles:
+            if (isinstance(column, bs4.element.Tag)):
+                hop_titles.append(column.get_text().strip())
+        if len(hop_titles) == 0:
+            print("Could not find the column titles for the hops table.")
 
         # Find the hops body.
         hops_table_body = hops_table.find("tbody")
@@ -129,10 +140,14 @@ class BF(ParseModule.ParseModule):
             return False
 
         # Parse the hops.
+        hops = []
         for row in hops_table_rows:
+            hop = {}
             columns = row.findAll("td")
-            for column in columns:
-                pass
+            for title, column in zip_func(hop_titles, columns):
+                hop[title] = column.get_text().strip()
+            hops.append(hop)
+        recipe['hops'] = hops
 
         # If we were given a database then store the results.
         if self.db is not None:
