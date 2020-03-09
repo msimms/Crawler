@@ -25,17 +25,24 @@
 import CrawlerDatabase
 import ParseModule
 import argparse
+import itertools
 import requests
 import sys
 import time
-from bs4 import BeautifulSoup
+import bs4
 
 # Import things so that they have the same name regardless of whether we are using python2 or python3.
 if sys.version_info[0] < 3:
     import urlparse
 else:
     import urllib.parse as urlparse
-    
+
+# Handle another python2/3 difference.
+if sys.version_info[0] < 3:
+    zip_func = itertools.izip
+else:
+    zip_func = zip
+
 def create(db):
     return BF(db)
 
@@ -55,8 +62,11 @@ class BF(ParseModule.ParseModule):
             print("Invalid network location: " + parsed.netloc)
             return False
 
-        # Parse the recipe.
-        blob = {}
+        recipe = {}
+        fermentable_titles = []
+        fermentables = []
+        hop_titles = []
+        hops = []
 
         # Find the fermentables (i.e. the grains).
         grains_div = soup.find("div", {"id": "fermentables"})
@@ -68,22 +78,75 @@ class BF(ParseModule.ParseModule):
             print("Failed to find the fermentables table.")
             return False
 
-        print(grains_table)
+        # Find the fermentables column titles.
+        grains_table_titles = grains_table.find("tr")
+        if grains_table_titles is None:
+            print("Failed to find the fermentables table column titles.")
+            return False
+        columns = grains_table_titles.findAll("th")
+        for column in grains_table_titles:
+            if (isinstance(column, bs4.element.Tag)):
+                fermentable_titles.append(column.get_text().strip())
+        if len(fermentable_titles) == 0:
+            print("Could not find the column titles for the fermentables table.")
+
+        # Find the fermentables body.
+        grains_table_body = grains_table.find("tbody")
+        if grains_table_body is None:
+            print("Failed to find the fermentables table body.")
+            return False
+        grains_table_rows = grains_table_body.findAll("tr")
+        if grains_table_rows is None:
+            print("Failed to find the fermentables table row.")
+            return False
+
+        # Parse the fermentables.
+        for row in grains_table_rows:
+            fermentable = {}
+            columns = row.findAll("td")
+            for title, column in zip_func(fermentable_titles, columns):
+                fermentable[title] = column.get_text().strip()
+            fermentables.append(fermentable)
+        print(fermentables)
 
         # Find the hop schedule.
         hops_div = soup.find("div", {"id": "hops"})
         if hops_div is None:
             print("Failed to find the hops section.")
-        #print(hops_div)
+        hops_table = hops_div.find("table")
+        if hops_table is None:
+            print("Failed to find the hops table.")
+            return False
 
+        # Find the hops body.
+        hops_table_body = hops_table.find("tbody")
+        if hops_table_body is None:
+            print("Failed to find the hops table body.")
+            return False
+        hops_table_rows = hops_table_body.findAll("tr")
+        if hops_table_rows is None:
+            print("Failed to find the hops table row.")
+            return False
+
+        # Parse the hops.
+        for row in hops_table_rows:
+            columns = row.findAll("td")
+            for column in columns:
+                pass
+
+        # If we were given a database then store the results.
         if self.db is not None:
 
             # Store it.
             visit_time = time.time()
-            if not self.db.create_page(url, visit_time, blob):
+            if not self.db.create_page(url, visit_time, recipe):
 
                 # Page was not created, presumably because it already exists, so just update it.
-                return self.db.update_page(url, visit_time, blob)
+                return self.db.update_page(url, visit_time, recipe)
+
+        # No database, just print the results.
+        else:
+            print(recipe)
 
         # Page was created.
         return True
@@ -97,7 +160,7 @@ def main():
 
     response = requests.get(args.url, headers={'User-Agent': 'Mozilla/5.0'})
     if response.status_code == 200:
-        soup = BeautifulSoup(response.content, 'html5lib')
+        soup = bs4.BeautifulSoup(response.content, 'html5lib')
         parser = BF(None)
         parser.parse(args.url, soup)
     else:
