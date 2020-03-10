@@ -66,10 +66,21 @@ class BF(ParseModule.ParseModule):
         fermentable_titles = []
         hop_titles = []
 
+        # Find the title and boil size.
+        title_div = soup.find("div", {"id": "viewTitle"})
+        if title_div is None:
+            print("Failed to find the title div.")
+            return False
+        title_header = title_div.find("h3")
+        if title_header is None:
+            print("Failed to find the title header.")
+            return False
+        recipe['title'] = title_header.get_text().strip()
+
         # Find the fermentables (i.e. the grains).
         grains_div = soup.find("div", {"id": "fermentables"})
         if grains_div is None:
-            print("Failed to find the fermentables section.")
+            print("Failed to find the fermentables div.")
             return False
         grains_table = grains_div.find("table")
         if grains_table is None:
@@ -111,7 +122,7 @@ class BF(ParseModule.ParseModule):
         # Find the hop schedule.
         hops_div = soup.find("div", {"id": "hops"})
         if hops_div is None:
-            print("Failed to find the hops section.")
+            print("Failed to find the hops div.")
         hops_table = hops_div.find("table")
         if hops_table is None:
             print("Failed to find the hops table.")
