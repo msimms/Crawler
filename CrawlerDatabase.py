@@ -32,7 +32,6 @@ import Database
 
 URL_KEY = 'url'
 LAST_VISIT_TIME_KEY = 'last visit time'
-BLOB_KEY = 'blob'
 
 class MongoDatabase(Database.Database):
 
@@ -52,7 +51,8 @@ class MongoDatabase(Database.Database):
 
     def create_page(self, url, last_visit_time, blob):
         try:
-            post = {URL_KEY: url, LAST_VISIT_TIME_KEY: last_visit_time, BLOB_KEY: blob}
+            post = {URL_KEY: url, LAST_VISIT_TIME_KEY: last_visit_time}
+            post.update(blob)
             self.pages_collection.insert(post)
             return True
         except:
@@ -65,7 +65,7 @@ class MongoDatabase(Database.Database):
             page = self.pages_collection.find_one({URL_KEY: url})
             if page is not None:
                 page[LAST_VISIT_TIME_KEY] = last_visit_time
-                page[BLOB_KEY] = blob
+                post.update(blob)
                 self.pages_collection.save(user)
                 return True
         except:
