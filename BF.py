@@ -66,7 +66,7 @@ class BF(ParseModule.ParseModule):
         fermentable_titles = []
         hop_titles = []
 
-        # Find the title and boil size.
+        # Find the title.
         title_div = soup.find("div", {"id": "viewTitle"})
         if title_div is None:
             print("Failed to find the title div.")
@@ -76,6 +76,20 @@ class BF(ParseModule.ParseModule):
             print("Failed to find the title header.")
             return False
         recipe['title'] = title_header.get_text().strip()
+
+        # Find the style.
+        style_span = soup.find("span", {"itemprop": "recipeCategory"})
+        if style_span is None:
+            print("Failed to find the style.")
+            return False
+        recipe['style'] = style_span.get_text().strip()
+
+        # Find the yield size.
+        yield_size_span = soup.find("span", {"itemprop": "recipeYield"})
+        if yield_size_span is None:
+            print("Failed to find the yield size.")
+            return False
+        recipe['yield size'] = yield_size_span.get_text().strip()
 
         # Find the fermentables (i.e. the grains).
         grains_div = soup.find("div", {"id": "fermentables"})
