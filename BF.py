@@ -112,6 +112,7 @@ class BF(ParseModule.ParseModule):
                 fermentable_titles.append(column.get_text().strip())
         if len(fermentable_titles) == 0:
             print("Could not find the column titles for the fermentables table.")
+            return False
 
         # Find the fermentables body.
         grains_table_body = grains_table.find("tbody")
@@ -137,6 +138,7 @@ class BF(ParseModule.ParseModule):
         hops_div = soup.find("div", {"id": "hops"})
         if hops_div is None:
             print("Failed to find the hops div.")
+            return False
         hops_table = hops_div.find("table")
         if hops_table is None:
             print("Failed to find the hops table.")
@@ -153,6 +155,7 @@ class BF(ParseModule.ParseModule):
                 hop_titles.append(column.get_text().strip())
         if len(hop_titles) == 0:
             print("Could not find the column titles for the hops table.")
+            return False
 
         # Find the hops body.
         hops_table_body = hops_table.find("tbody")
@@ -179,6 +182,7 @@ class BF(ParseModule.ParseModule):
         yeasts_div = soup.find("div", {"id": "yeasts"})
         if yeasts_div is None:
             print("Failed to find the yeasts section.")
+            return False
         yeasts_table = yeasts_div.find("table")
         if yeasts_table is None:
             print("Failed to find the yeasts table.")
