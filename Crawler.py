@@ -29,6 +29,8 @@ import requests
 import signal
 import sys
 import time
+import traceback
+import urllib
 from bs4 import BeautifulSoup
 from url_normalize import url_normalize
 import CrawlerDatabase
@@ -68,6 +70,7 @@ class Crawler(object):
         self.max_depth = max_depth
         self.verbose = verbose
         self.running = True
+        self.urls_to_crawl = [] # URLs awaiting crawling
         self.recent_urls = [] # Quick hack so we don't keep hitting the same URLs
 
         # Connect to the database.
@@ -85,8 +88,8 @@ class Crawler(object):
 
         super(Crawler, self).__init__()
 
-    def crawl_content(self, url, content, current_depth):
-        """Starts crawling read from a file or URL."""
+    def parse_content(self, url, content):
+        """Parses data that was read from either a file or URL."""
 
         # Parse the page.
         soup = BeautifulSoup(content, 'html5lib')
@@ -94,22 +97,27 @@ class Crawler(object):
             self.parser.parse(url, soup)
 
         # Harvest new links.
-        new_url_list = []
         for a in soup.find_all('a', href=True):
-            new_url_list.append(a['href'])
-        new_url_list = list(dict.fromkeys(new_url_list)) # Remove duplicates
+            self.urls_to_crawl.append(a['href'])
+        self.urls_to_crawl = list(dict.fromkeys(self.urls_to_crawl)) # Remove duplicates
+
+    def visit_new_urls(self, parent_url, cookies, current_depth):
+        """Visits URLs that we haven't visited yet."""
 
         # Crawl new links.
-        for new_url in new_url_list:
+        for new_url in self.urls_to_crawl:
 
             # If the crawling has been cancelled.
             if self.running is False:
                 return
 
             # Crawl the link.
-            self.crawl_url(url, new_url, current_depth + 1)
+            self.crawl_url(parent_url, new_url, cookies, current_depth + 1)
 
-    def crawl_file(self, file_name):
+            # Wait.
+            time.sleep(self.rate_secs)
+
+    def crawl_file(self, file_name, cookies):
         """Starts crawling from a file."""
 
         # Open the file.
@@ -119,13 +127,18 @@ class Crawler(object):
             content = f.read()
 
             # Crawl the content.
-            self.crawl_content("", content, 0)
+            self.parse_content("", content)
 
-    def crawl_url(self, parent_url, child_url, current_depth):
+            # Visit the fresh links.
+            self.visit_new_urls(url, cookies, 0)
+
+    def crawl_url(self, parent_url, child_url, cookies, current_depth):
         """Crawls, starting at the given URL, up to the maximum depth."""
 
         # If we've exceeded the maximum depth.
-        if current_depth >= self.max_depth:
+        if self.max_depth is not None and current_depth >= self.max_depth:
+            if self.verbose:
+                print("Maximum crawl depth exceeded.")
             return
 
         # Canonicalize the URL.
@@ -134,12 +147,11 @@ class Crawler(object):
 
         # If we've been here before.
         if url in self.recent_urls:
+            if self.verbose:
+                print("Skipping " + url + " because we've seen it before.")
             return
 
         try:
-            # Wait.
-            time.sleep(self.rate_secs)
-            
             # Download the page from the URL.
             if self.verbose:
                 print("Requesting data from " + url + "...")
@@ -152,13 +164,22 @@ class Crawler(object):
                 if self.verbose:
                     print("Parsing " + url + "...")
 
-                # Crawl the content.
-                self.crawl_content(url, response.content, current_depth)
+                # Don't revisit this anytime soon.
+                self.recent_urls.append(url)
+
+                # Process the content.
+                self.parse_content(url, response.content)
+
+                # Visit the fresh links.
+                self.visit_new_urls(url, cookies, current_depth)
 
             # Print the error.
             elif self.verbose:
                 print("Received HTTP Error " + str(response.status_code) + ".")
+
         except:
+            print(traceback.format_exc())
+            print(sys.exc_info()[0])
             print("Exception requesting data.")
 
 def main():
@@ -195,13 +216,16 @@ def main():
     # Configure the error logger.
     logging.basicConfig(filename=ERROR_LOG, filemode='w', level=logging.DEBUG, format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
 
+    # Cookies to use when performing an HTTP request.
+    cookies = None
+
     # Crawl a file.
     if len(args.file) > 0:
-        g_crawler.crawl_file(args.file)
+        g_crawler.crawl_file(args.file, cookies)
 
     # Crawl a URL.
     if len(args.url) > 0:
-        g_crawler.crawl_url("", args.url, 0)
+        g_crawler.crawl_url("", args.url, cookies, 0)
 
 if __name__ == "__main__":
     main()
