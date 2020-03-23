@@ -30,6 +30,7 @@ import requests
 import sys
 import time
 import bs4
+import urllib
 
 # Import things so that they have the same name regardless of whether we are using python2 or python3.
 if sys.version_info[0] < 3:
@@ -52,6 +53,12 @@ class BF(ParseModule.ParseModule):
     def __init__(self, db):
         self.db = db
         ParseModule.ParseModule.__init__(self)
+
+    def make_cookies(self, args):
+        """Builds the cookies dictionary that will be passed with the HTTP GET requests."""
+        keyword_dict = dict(keyword="session ipa")
+        search_dict = dict(search_settings = keyword_dict)
+        return urllib.urlencode(search_dict)
 
     def parse(self, url, soup):
         """Parses the contents downloaded from the URL, extracts the recipe, and stores it in the database."""
@@ -221,6 +228,7 @@ def main():
     args = parser.parse_args()
 
     response = requests.get(args.url, headers={'User-Agent': 'Mozilla/5.0'})
+
     if response.status_code == 200:
         soup = bs4.BeautifulSoup(response.content, 'html5lib')
         parser = BF(None)

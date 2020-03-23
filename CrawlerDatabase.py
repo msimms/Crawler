@@ -38,10 +38,10 @@ class MongoDatabase(Database.Database):
     def __init__(self):
         Database.Database.__init__(self)
 
-    def connect(self):
+    def connect(self, db_addr):
         """Connects/creates the database"""
         try:
-            self.conn = pymongo.MongoClient('localhost:27017')
+            self.conn = pymongo.MongoClient(db_addr)
             self.database = self.conn['crawlerdb']
             self.pages_collection = self.database['pages']
             return True

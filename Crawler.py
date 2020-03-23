@@ -59,33 +59,28 @@ def signal_handler(signal, frame):
         g_crawler.running = False
     print("Done")
     
+def create_website_object(module_name, db):
+    """Load the module that implements website-specific logic and instantiates an object of the class that does the work."""
+    if module_name and os.path.isfile(module_name):
+        if sys.version_info[0] < 3:
+            module = imp.load_source("", module_name)
+        else:
+            module = mymodule = SourceFileLoader('modname', module_name).load_module()
+        return module.create(db)
+    return None
+
 class Crawler(object):
     """Class containing the URL handlers."""
 
-    def __init__(self, rate_secs, parse_module_name, mongodb_addr, max_depth, verbose):
+    def __init__(self, rate_secs, website_obj, db, max_depth, verbose):
         self.rate_secs = rate_secs
-        self.parse_module = None
-        self.parser = None
-        self.mongodb = None
+        self.website_obj = website_obj
+        self.db = db
         self.max_depth = max_depth
         self.verbose = verbose
         self.running = True
         self.urls_to_crawl = [] # URLs awaiting crawling
         self.recent_urls = [] # Quick hack so we don't keep hitting the same URLs
-
-        # Connect to the database.
-        if mongodb_addr is not None:
-            self.mongodb = CrawlerDatabase.MongoDatabase()
-            self.mongodb.connect()
-
-        # Load the module that will parse the pages that we download.
-        if os.path.isfile(parse_module_name):
-            if sys.version_info[0] < 3:
-                self.parse_module = imp.load_source("", parse_module_name)
-            else:
-                self.parse_module = mymodule = SourceFileLoader('modname', parse_module_name).load_module()
-            self.parser = self.parse_module.create(self.mongodb)
-
         super(Crawler, self).__init__()
 
     def parse_content(self, url, content):
@@ -93,8 +88,10 @@ class Crawler(object):
 
         # Parse the page.
         soup = BeautifulSoup(content, 'html5lib')
-        if self.parser is not None:
-            self.parser.parse(url, soup)
+
+        # Let the website object extract whatever it wants from the page.
+        if self.website_obj is not None:
+            self.website_obj.parse(url, soup)
 
         # Harvest new links.
         for a in soup.find_all('a', href=True):
@@ -155,7 +152,7 @@ class Crawler(object):
             # Download the page from the URL.
             if self.verbose:
                 print("Requesting data from " + url + "...")
-            response = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
+            response = requests.get(url, cookies=cookies, headers={'User-Agent': 'Mozilla/5.0'})
 
             # If downloaded....
             if response.status_code == 200:
@@ -182,6 +179,7 @@ class Crawler(object):
             print(sys.exc_info()[0])
             print("Exception requesting data.")
 
+
 def main():
     """Entry point for the app."""
 
@@ -193,7 +191,7 @@ def main():
     parser.add_argument("--url", default="", help="URL to crawl.", required=False)
     parser.add_argument("--rate", type=int, default=1, help="Rate, in seconds, at which to crawl.", required=False)
     parser.add_argument("--max-depth", type=int, default=None, help="Maximum crawl depth.", required=False)
-    parser.add_argument("--parse-module", default="", help="Python module that will parse each page.", required=False)
+    parser.add_argument("--website-module", default=None, help="Python module that implements website-specific logic.", required=False)
     parser.add_argument("--mongodb-addr", default="localhost:27017", help="Address of the mongo database.", required=False)
     parser.add_argument("--verbose", action="store_true", default=False, help="Enables verbose output.", required=False)
 
@@ -208,7 +206,17 @@ def main():
         print("Neither a file nor a URL to crawl was specified.")
         sys.exit(1)
 
-    g_crawler = Crawler(args.rate, args.parse_module, args.mongodb_addr, args.max_depth, args.verbose)
+    # Instantiate the object that connects to the database.
+    db = None
+    if args.mongodb_addr is not None:
+        db = CrawlerDatabase.MongoDatabase()
+        db.connect(args.mongodb_addr)
+
+    # Instantiate the object that implements website-specific logic.
+    website_obj = create_website_object(args.website_module, db)
+
+    # Instantiate the object that does the crawling.
+    g_crawler = Crawler(args.rate, website_obj, db, args.max_depth, args.verbose)
 
     # Register the signal handler.
     signal.signal(signal.SIGINT, signal_handler)
@@ -218,6 +226,8 @@ def main():
 
     # Cookies to use when performing an HTTP request.
     cookies = None
+    if website_obj is not None:
+        website_obj = website_obj.make_cookies(args)
 
     # Crawl a file.
     if len(args.file) > 0:

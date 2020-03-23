@@ -39,5 +39,12 @@ class ParseModule(object):
     def find_body_tag(self, html_tag):
         return html_tag.find('body')
 
+    def make_cookies(self, args):
+        """Builds the cookies dictionary that will be passed with the HTTP GET requests."""
+        """To be overridden in the child class."""
+        return False
+
     def parse(self, url, soup):
-        pass
+        """Parses the contents downloaded from the URL, extracts the recipe, and stores it in the database."""
+        """To be overridden in the child class."""
+        return False
