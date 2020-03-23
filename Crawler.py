@@ -227,7 +227,7 @@ def main():
     # Cookies to use when performing an HTTP request.
     cookies = None
     if website_obj is not None:
-        website_obj = website_obj.make_cookies(args)
+        cookies = website_obj.make_cookies(args)
 
     # Crawl a file.
     if len(args.file) > 0:
