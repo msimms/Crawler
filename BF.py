@@ -57,8 +57,8 @@ class BF(ParseModule.ParseModule):
     def make_cookies(self, args):
         """Builds the cookies dictionary that will be passed with the HTTP GET requests."""
         keyword_dict = dict(keyword="session ipa")
-        search_dict = dict(search_settings = keyword_dict)
-        return urllib.urlencode(search_dict)
+        search_dict = dict(search_settings = urllib.urlencode(keyword_dict))
+        return search_dict
 
     def parse(self, url, soup):
         """Parses the contents downloaded from the URL, extracts the recipe, and stores it in the database."""
