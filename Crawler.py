@@ -109,10 +109,11 @@ class Crawler(object):
                 return
 
             # Crawl the link.
-            self.crawl_url(parent_url, new_url, cookies, current_depth + 1)
+            crawled = self.crawl_url(parent_url, new_url, cookies, current_depth + 1)
 
             # Wait.
-            time.sleep(self.rate_secs)
+            if crawled:
+                time.sleep(self.rate_secs)
 
     def crawl_file(self, file_name, cookies):
         """Starts crawling from a file."""
@@ -146,7 +147,7 @@ class Crawler(object):
         if url in self.recent_urls:
             if self.verbose:
                 print("Skipping " + url + " because we've seen it before.")
-            return
+            return False
 
         try:
             # Download the page from the URL.
@@ -170,6 +171,8 @@ class Crawler(object):
                 # Visit the fresh links.
                 self.visit_new_urls(url, cookies, current_depth)
 
+                return True
+
             # Print the error.
             elif self.verbose:
                 print("Received HTTP Error " + str(response.status_code) + ".")
@@ -178,6 +181,8 @@ class Crawler(object):
             print(traceback.format_exc())
             print(sys.exc_info()[0])
             print("Exception requesting data.")
+
+        return False
 
 
 def main():
