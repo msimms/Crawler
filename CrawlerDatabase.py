@@ -29,9 +29,7 @@ import uuid
 from bson.objectid import ObjectId
 import pymongo
 import Database
-
-URL_KEY = 'url'
-LAST_VISIT_TIME_KEY = 'last visit time'
+import Keys
 
 class MongoDatabase(Database.Database):
 
@@ -50,9 +48,11 @@ class MongoDatabase(Database.Database):
         return False
 
     def create_page(self, url, last_visit_time, blob):
+        """Create method for a webpage."""
         try:
-            post = {URL_KEY: url, LAST_VISIT_TIME_KEY: last_visit_time}
-            post.update(blob)
+            post = {Keys.URL_KEY: url, Keys.LAST_VISIT_TIME_KEY: last_visit_time}
+            if blob is not None:
+                post.update(blob)
             self.pages_collection.insert(post)
             return True
         except:
@@ -60,12 +60,24 @@ class MongoDatabase(Database.Database):
             self.log_error(sys.exc_info()[0])
         return False
 
-    def update_page(self, url, last_visit_time, blob):
+    def retrieve_page(self, url):
+        """Retrieve method for a webpage."""
         try:
-            page = self.pages_collection.find_one({URL_KEY: url})
+            page = self.pages_collection.find_one({Keys.URL_KEY: url})
+            return page
+        except:
+            self.log_error(traceback.format_exc())
+            self.log_error(sys.exc_info()[0])
+        return None
+
+    def update_page(self, url, last_visit_time, blob):
+        """Update method for a webpage."""
+        try:
+            page = self.pages_collection.find_one({Keys.URL_KEY: url})
             if page is not None:
-                page[LAST_VISIT_TIME_KEY] = last_visit_time
-                post.update(blob)
+                page[Keys.LAST_VISIT_TIME_KEY] = last_visit_time
+                if blob is not None:
+                    post.update(blob)
                 self.pages_collection.save(user)
                 return True
         except:

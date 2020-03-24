@@ -34,6 +34,7 @@ import urllib
 from bs4 import BeautifulSoup
 from url_normalize import url_normalize
 import CrawlerDatabase
+import Keys
 
 ERROR_LOG = 'error.log'
 
@@ -59,59 +60,86 @@ def signal_handler(signal, frame):
         g_crawler.running = False
     print("Done")
     
-def create_website_object(module_name, db):
+def create_website_object(module_name):
     """Load the module that implements website-specific logic and instantiates an object of the class that does the work."""
     if module_name and os.path.isfile(module_name):
         if sys.version_info[0] < 3:
             module = imp.load_source("", module_name)
         else:
             module = mymodule = SourceFileLoader('modname', module_name).load_module()
-        return module.create(db)
+        return module.create()
     return None
 
 class Crawler(object):
     """Class containing the URL handlers."""
 
-    def __init__(self, rate_secs, website_obj, db, max_depth, verbose):
+    def __init__(self, rate_secs, website_obj, db, max_depth, min_revisit_secs, verbose):
+        """Constructor."""
         self.rate_secs = rate_secs
         self.website_obj = website_obj
         self.db = db
         self.max_depth = max_depth
+        self.min_revisit_secs = min_revisit_secs
         self.verbose = verbose
         self.running = True
-        self.urls_to_crawl = [] # URLs awaiting crawling
-        self.recent_urls = [] # Quick hack so we don't keep hitting the same URLs
+        self.error_urls = [] # These URLs are giving us problems, skip them.
         super(Crawler, self).__init__()
+
+    def verbose_print(self, msg):
+        """Helper function."""
+        if self.verbose:
+            print(msg)
+
+    def create_or_update_database(self, url, blob):
+        """Helper function."""
+        if self.db is None:
+            return
+
+        # Let the user know what's going on.
+        self.verbose_print("Storing " + url + " in the database...")
+
+        # Update database.
+        page_from_db = self.db.retrieve_page(url)
+        if page_from_db:
+            self.db.update_page(url, time.time(), blob)
+        else:
+            self.db.create_page(url, time.time(), blob)
 
     def parse_content(self, url, content):
         """Parses data that was read from either a file or URL."""
 
+        # Let the user know what's going on.
+        self.verbose_print("Parsing " + url + "...")
+
         # Parse the page.
         soup = BeautifulSoup(content, 'html5lib')
 
-        # Let the website object extract whatever it wants from the page.
+        # Let the website object extract whatever information it wants from the page.
+        blob = None
         if self.website_obj is not None:
-            self.website_obj.parse(url, soup)
+            blob = self.website_obj.parse(url, soup)
 
-        # Harvest new links.
+        # Harvest any new URLs.
+        urls_to_crawl = []
         for a in soup.find_all('a', href=True):
-            self.urls_to_crawl.append(a['href'])
-        self.urls_to_crawl = list(dict.fromkeys(self.urls_to_crawl)) # Remove duplicates
+            urls_to_crawl.append(a['href'])
+        urls_to_crawl = list(dict.fromkeys(urls_to_crawl)) # Remove duplicates
+        return blob, urls_to_crawl
 
-    def visit_new_urls(self, parent_url, cookies, current_depth):
+    def visit_new_urls(self, parent_url, urls_to_crawl, cookies, current_depth):
         """Visits URLs that we haven't visited yet."""
 
-        # Crawl new links.
-        for new_url in self.urls_to_crawl:
+        # Crawl all new URLs.
+        for new_url in urls_to_crawl:
 
             # If the crawling has been cancelled.
             if self.running is False:
                 return
 
-            # Crawl the link.
+            # Crawl the URL.
             crawled = self.crawl_url(parent_url, new_url, cookies, current_depth + 1)
 
-            # Wait.
+            # Wait, but only if we actually did something.
             if crawled:
                 time.sleep(self.rate_secs)
 
@@ -125,59 +153,81 @@ class Crawler(object):
             content = f.read()
 
             # Crawl the content.
-            self.parse_content("", content)
+            blob, urls_to_crawl = self.parse_content("", content)
 
-            # Visit the fresh links.
-            self.visit_new_urls(url, cookies, 0)
+            # Visit the fresh URLs.
+            self.visit_new_urls(url, urls_to_crawl, cookies, 0)
 
     def crawl_url(self, parent_url, child_url, cookies, current_depth):
         """Crawls, starting at the given URL, up to the maximum depth."""
 
         # If we've exceeded the maximum depth.
         if self.max_depth is not None and current_depth >= self.max_depth:
-            if self.verbose:
-                print("Maximum crawl depth exceeded.")
-            return
+            self.verbose_print("Maximum crawl depth exceeded.")
+            return False
 
         # Canonicalize the URL.
         url = urljoin(parent_url, child_url)
         url = url_normalize(url)
 
-        # If we've been here before.
-        if url in self.recent_urls:
-            if self.verbose:
-                print("Skipping " + url + " because we've seen it before.")
+        # Drop any query parameters.
+        parts = url.split('#')
+        url = parts[0]
+
+        # If this URL has given us problems then skip it.
+        if url in self.error_urls:
+            self.verbose_print("Skipping " + url + " because it has given us problems.")
             return False
 
+        # If we've been here before and it was within our revisit window then just skip.
+        # Don't bother doing this check for the first URL, since it'll be the one the user told us to crawl.
+        if current_depth > 0 and self.db and self.min_revisit_secs and self.min_revisit_secs > 0:
+
+            # Get the database record corresonding to this URL.
+            page_from_db = self.db.retrieve_page(url)
+            if page_from_db and Keys.LAST_VISIT_TIME_KEY in page_from_db:
+
+                # How many seconds since we were last here?
+                last_visited = time.time() - page_from_db[Keys.LAST_VISIT_TIME_KEY]
+                if last_visited < self.min_revisit_secs:
+                    self.verbose_print("Skipping " + url + " because we visited it " + str(last_visited) + " second(s) ago.")
+                    return False
+
         try:
+
             # Download the page from the URL.
-            if self.verbose:
-                print("Requesting data from " + url + "...")
+            self.verbose_print("Requesting data from " + url + "...")
             response = requests.get(url, cookies=cookies, headers={'User-Agent': 'Mozilla/5.0'})
 
             # If downloaded....
             if response.status_code == 200:
 
-                # Print the output.
-                if self.verbose:
-                    print("Parsing " + url + "...")
+                # Process the content. Anything the parsing module wants stored will be returned in the blob.
+                blob, urls_to_crawl = self.parse_content(url, response.content)
 
-                # Don't revisit this anytime soon.
-                self.recent_urls.append(url)
+                # Note that we visited this webpage.
+                self.create_or_update_database(url, blob)
 
-                # Process the content.
-                self.parse_content(url, response.content)
-
-                # Visit the fresh links.
-                self.visit_new_urls(url, cookies, current_depth)
+                # Visit the fresh URLs.
+                self.visit_new_urls(url, urls_to_crawl, cookies, current_depth)
 
                 return True
 
-            # Print the error.
-            elif self.verbose:
-                print("Received HTTP Error " + str(response.status_code) + ".")
+            # Nothing downloaded.
+            else:
+
+                # Make sure we don't go here again.
+                self.error_urls.append(url)
+
+                # Print an error.
+                self.verbose_print("Received HTTP Error " + str(response.status_code) + ".")
 
         except:
+
+            # Make sure we don't go here again.
+            self.error_urls.append(url)
+
+            # Log an error.
             print(traceback.format_exc())
             print(sys.exc_info()[0])
             print("Exception requesting data.")
@@ -196,6 +246,7 @@ def main():
     parser.add_argument("--url", default="", help="URL to crawl.", required=False)
     parser.add_argument("--rate", type=int, default=1, help="Rate, in seconds, at which to crawl.", required=False)
     parser.add_argument("--max-depth", type=int, default=None, help="Maximum crawl depth.", required=False)
+    parser.add_argument("--min-revisit-secs", type=int, default=None, help="Minimum number of seconds before allowing a URL to be revisited.", required=False)
     parser.add_argument("--website-module", default=None, help="Python module that implements website-specific logic.", required=False)
     parser.add_argument("--mongodb-addr", default="localhost:27017", help="Address of the mongo database.", required=False)
     parser.add_argument("--verbose", action="store_true", default=False, help="Enables verbose output.", required=False)
@@ -218,10 +269,10 @@ def main():
         db.connect(args.mongodb_addr)
 
     # Instantiate the object that implements website-specific logic.
-    website_obj = create_website_object(args.website_module, db)
+    website_obj = create_website_object(args.website_module)
 
     # Instantiate the object that does the crawling.
-    g_crawler = Crawler(args.rate, website_obj, db, args.max_depth, args.verbose)
+    g_crawler = Crawler(args.rate, website_obj, db, args.max_depth, args.min_revisit_secs, args.verbose)
 
     # Register the signal handler.
     signal.signal(signal.SIGINT, signal_handler)

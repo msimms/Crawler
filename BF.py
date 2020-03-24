@@ -44,14 +44,15 @@ if sys.version_info[0] < 3:
 else:
     zip_func = zip
 
-def create(db):
-    return BF(db)
+# Factory function.
+def create():
+    return BF()
 
 class BF(ParseModule.ParseModule):
     """Module for parsing web pages from brewersfriend.com."""
 
-    def __init__(self, db):
-        self.db = db
+    def __init__(self):
+        """Constructor."""
         ParseModule.ParseModule.__init__(self)
 
     def make_cookies(self, args):
@@ -67,7 +68,7 @@ class BF(ParseModule.ParseModule):
         parsed = urlparse.urlparse(url)
         if parsed.netloc.find("www.brewersfriend.com") != 0:
             print("Invalid network location: " + parsed.netloc)
-            return False
+            return None
 
         recipe = {}
         fermentable_titles = []
@@ -77,59 +78,59 @@ class BF(ParseModule.ParseModule):
         title_div = soup.find("div", {"id": "viewTitle"})
         if title_div is None:
             print("Failed to find the title div.")
-            return False
+            return None
         title_header = title_div.find("h3")
         if title_header is None:
             print("Failed to find the title header.")
-            return False
+            return None
         recipe['title'] = title_header.get_text().strip()
 
         # Find the style.
         style_span = soup.find("span", {"itemprop": "recipeCategory"})
         if style_span is None:
             print("Failed to find the style.")
-            return False
+            return None
         recipe['style'] = style_span.get_text().strip()
 
         # Find the yield size.
         yield_size_span = soup.find("span", {"itemprop": "recipeYield"})
         if yield_size_span is None:
             print("Failed to find the yield size.")
-            return False
+            return None
         recipe['yield size'] = yield_size_span.get_text().strip()
 
         # Find the fermentables (i.e. the grains).
         grains_div = soup.find("div", {"id": "fermentables"})
         if grains_div is None:
             print("Failed to find the fermentables div.")
-            return False
+            return None
         grains_table = grains_div.find("table")
         if grains_table is None:
             print("Failed to find the fermentables table.")
-            return False
+            return None
 
         # Find the fermentables column titles.
         grains_table_titles = grains_table.find("tr")
         if grains_table_titles is None:
             print("Failed to find the fermentables table column titles.")
-            return False
+            return None
         columns = grains_table_titles.findAll("th")
         for column in grains_table_titles:
             if (isinstance(column, bs4.element.Tag)):
                 fermentable_titles.append(column.get_text().strip())
         if len(fermentable_titles) == 0:
             print("Could not find the column titles for the fermentables table.")
-            return False
+            return None
 
         # Find the fermentables body.
         grains_table_body = grains_table.find("tbody")
         if grains_table_body is None:
             print("Failed to find the fermentables table body.")
-            return False
+            return None
         grains_table_rows = grains_table_body.findAll("tr")
         if grains_table_rows is None:
             print("Failed to find the fermentables table row.")
-            return False
+            return None
 
         # Parse the fermentables.
         fermentables = []
@@ -145,34 +146,34 @@ class BF(ParseModule.ParseModule):
         hops_div = soup.find("div", {"id": "hops"})
         if hops_div is None:
             print("Failed to find the hops div.")
-            return False
+            return None
         hops_table = hops_div.find("table")
         if hops_table is None:
             print("Failed to find the hops table.")
-            return False
+            return None
 
         # Find the hops column titles.
         hops_table_titles = hops_table.find("tr")
         if hops_table_titles is None:
             print("Failed to find the hops table column titles.")
-            return False
+            return None
         columns = hops_table_titles.findAll("th")
         for column in hops_table_titles:
             if (isinstance(column, bs4.element.Tag)):
                 hop_titles.append(column.get_text().strip())
         if len(hop_titles) == 0:
             print("Could not find the column titles for the hops table.")
-            return False
+            return None
 
         # Find the hops body.
         hops_table_body = hops_table.find("tbody")
         if hops_table_body is None:
             print("Failed to find the hops table body.")
-            return False
+            return None
         hops_table_rows = hops_table_body.findAll("tr")
         if hops_table_rows is None:
             print("Failed to find the hops table row.")
-            return False
+            return None
 
         # Parse the hops.
         hops = []
@@ -189,36 +190,22 @@ class BF(ParseModule.ParseModule):
         yeasts_div = soup.find("div", {"id": "yeasts"})
         if yeasts_div is None:
             print("Failed to find the yeasts section.")
-            return False
+            return None
         yeasts_table = yeasts_div.find("table")
         if yeasts_table is None:
             print("Failed to find the yeasts table.")
-            return False
+            return None
         yeasts_table_head = yeasts_table.find("thead")
         if yeasts_table_head is None:
             print("Failed to find the yeasts table head.")
-            return False
+            return None
         yeasts_table_row = yeasts_table_head.findAll("tr")
         for row in yeasts_table_row:
             yeasts.append(row.get_text().strip())
         recipe['yeasts'] = yeasts
 
-        # If we were given a database then store the results.
-        if self.db is not None:
-
-            # Store it.
-            visit_time = time.time()
-            if not self.db.create_page(url, visit_time, recipe):
-
-                # Page was not created, presumably because it already exists, so just update it.
-                return self.db.update_page(url, visit_time, recipe)
-
-        # No database, just print the results.
-        else:
-            print(recipe)
-
-        # Page was created.
-        return True
+        # Return the recipe so it can be stored in the database.
+        return recipe
 
 def main():
     """This is the entry point that is used to perform unit tests on this module."""
@@ -227,14 +214,15 @@ def main():
     parser.add_argument("--url", default="", help="URL to parse.", required=False)
     args = parser.parse_args()
 
-    response = requests.get(args.url, headers={'User-Agent': 'Mozilla/5.0'})
+    if args.url:
+        response = requests.get(args.url, headers={'User-Agent': 'Mozilla/5.0'})
 
-    if response.status_code == 200:
-        soup = bs4.BeautifulSoup(response.content, 'html5lib')
-        parser = BF(None)
-        parser.parse(args.url, soup)
-    else:
-        print("Received status invalid code: " + str(response.status_code))
+        if response.status_code == 200:
+            soup = bs4.BeautifulSoup(response.content, 'html5lib')
+            parser = BF(None)
+            parser.parse(args.url, soup)
+        else:
+            print("Received status invalid code: " + str(response.status_code))
 
 if __name__ == "__main__":
     main()
