@@ -262,7 +262,7 @@ def main():
     parser.add_argument("--rate", type=int, default=1, help="Rate, in seconds, at which to crawl.", required=False)
     parser.add_argument("--max-depth", type=int, default=None, help="Maximum crawl depth.", required=False)
     parser.add_argument("--min-revisit-secs", type=int, default=None, help="Minimum number of seconds before allowing a URL to be revisited.", required=False)
-    parser.add_argument("--website-module", default=None, help="Python module that implements website-specific logic.", required=False)
+    parser.add_argument("--website-modules", default=None, help="Python modules that implement website-specific logic.", required=False)
     parser.add_argument("--mongodb-addr", default="localhost:27017", help="Address of the mongo database.", required=False)
     parser.add_argument("--verbose", action="store_true", default=False, help="Enables verbose output.", required=False)
 
@@ -285,8 +285,10 @@ def main():
 
     # Instantiate the object that implements website-specific logic.
     website_objs = []
-    website_obj = create_website_object(args.website_module)
-    website_objs.append(website_obj)
+    website_module_names = args.website_modules.split(',')
+    for website_module_name in website_module_names:
+        website_obj = create_website_object(website_module_name)
+        website_objs.append(website_obj)
 
     # Instantiate the object that does the crawling.
     g_crawler = Crawler(args.rate, website_objs, db, args.max_depth, args.min_revisit_secs, args.verbose)
