@@ -69,6 +69,15 @@ class MongoDatabase(Database.Database):
             self.log_error(sys.exc_info()[0])
         return None
 
+    def retrieve_all_pages(self):
+        """Retrieve method for a webpage."""
+        try:
+            return self.pages_collection.find()
+        except:
+            self.log_error(traceback.format_exc())
+            self.log_error(sys.exc_info()[0])
+        return None
+
     def update_page(self, url, last_visit_time, blob):
         """Update method for a webpage."""
         try:

@@ -23,6 +23,7 @@
 # SOFTWARE.
 
 import CrawlerDatabase
+import Keys
 import ParseModule
 import argparse
 import itertools
@@ -31,6 +32,13 @@ import sys
 import time
 import bs4
 import urllib
+
+TITLE_KEY = 'title'
+STYLE_KEY = 'style'
+YIELD_SIZE_KEY = 'yield size'
+GRAINS_KEY = 'grains'
+HOPS_KEY = 'hops'
+YEASTS_KEY = 'yeasts'
 
 # Import things so that they have the same name regardless of whether we are using python2 or python3.
 if sys.version_info[0] < 3:
@@ -57,7 +65,7 @@ class BF(ParseModule.ParseModule):
 
     def make_cookies(self, args):
         """Builds the cookies dictionary that will be passed with the HTTP GET requests."""
-        keyword_dict = dict(keyword="session ipa")
+        keyword_dict = dict(keyword = "session ipa")
         search_dict = dict(search_settings = urllib.urlencode(keyword_dict))
         return search_dict
 
@@ -87,21 +95,21 @@ class BF(ParseModule.ParseModule):
         if title_header is None:
             print("Failed to find the title header.")
             return None
-        recipe['title'] = title_header.get_text().strip()
+        recipe[TITLE_KEY] = title_header.get_text().strip()
 
         # Find the style.
         style_span = soup.find("span", {"itemprop": "recipeCategory"})
         if style_span is None:
             print("Failed to find the style.")
             return None
-        recipe['style'] = style_span.get_text().strip()
+        recipe[STYLE_KEY] = style_span.get_text().strip()
 
         # Find the yield size.
         yield_size_span = soup.find("span", {"itemprop": "recipeYield"})
         if yield_size_span is None:
             print("Failed to find the yield size.")
             return None
-        recipe['yield size'] = yield_size_span.get_text().strip()
+        recipe[YIELD_SIZE_KEY] = yield_size_span.get_text().strip()
 
         # Find the fermentables (i.e. the grains).
         grains_div = soup.find("div", {"id": "fermentables"})
@@ -144,7 +152,7 @@ class BF(ParseModule.ParseModule):
             for title, column in zip_func(fermentable_titles, columns):
                 fermentable[title] = column.get_text().strip()
             fermentables.append(fermentable)
-        recipe['grains'] = fermentables
+        recipe[GRAINS_KEY] = fermentables
 
         # Find the hop schedule.
         hops_div = soup.find("div", {"id": "hops"})
@@ -193,7 +201,7 @@ class BF(ParseModule.ParseModule):
                 else:
                     hop[title] = column.get_text().strip()
             hops.append(hop)
-        recipe['hops'] = hops
+        recipe[HOPS_KEY] = hops
 
         # Find the yeasts section.
         yeasts = []
@@ -212,7 +220,7 @@ class BF(ParseModule.ParseModule):
         yeasts_table_row = yeasts_table_head.findAll("tr")
         for row in yeasts_table_row:
             yeasts.append(row.get_text().strip())
-        recipe['yeasts'] = yeasts
+        recipe[YEASTS_KEY] = yeasts
 
         # Return the recipe so it can be stored in the database.
         return recipe
@@ -220,19 +228,43 @@ class BF(ParseModule.ParseModule):
 def main():
     """This is the entry point that is used to perform unit tests on this module."""
 
+    # Command line options.
     parser = argparse.ArgumentParser()
     parser.add_argument("--url", default="", help="URL to parse.", required=False)
+    parser.add_argument("--dump", action="store_true", default=False, help="Dumps recipes to stdout.", required=False)
+    parser.add_argument("--mongodb-addr", default="localhost:27017", help="Address of the mongo database.", required=False)
     args = parser.parse_args()
 
+    # Instantiate the object that connects to the database.
+    db = None
+    if args.mongodb_addr is not None:
+        db = CrawlerDatabase.MongoDatabase()
+        db.connect(args.mongodb_addr)
+
+    # This option exists for testing by allowing the user to give a URL directly to the parser.
     if args.url:
         response = requests.get(args.url, headers={'User-Agent': 'Mozilla/5.0'})
 
         if response.status_code == 200:
             soup = bs4.BeautifulSoup(response.content, 'html5lib')
-            parser = BF(None)
+            parser = BF()
             parser.parse(args.url, soup)
         else:
-            print("Received status invalid code: " + str(response.status_code))
+            print("ERROR: Received status invalid code: " + str(response.status_code))
+
+    # This option allows the user to dump recipes to stdout.
+    if args.dump:
+
+        # Sanity check.
+        if db is None:
+            print("ERROR: No database.")
+
+        parser = BF()
+        all_pages = db.retrieve_all_pages()
+        for page in all_pages:
+            if Keys.URL_KEY in page and parser.is_interesting_url(page[Keys.URL_KEY]):
+                if TITLE_KEY in page:
+                    print(page)
 
 if __name__ == "__main__":
     main()
