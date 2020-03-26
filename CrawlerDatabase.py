@@ -72,12 +72,12 @@ class MongoDatabase(Database.Database):
     def update_page(self, url, last_visit_time, blob):
         """Update method for a webpage."""
         try:
-            page = self.pages_collection.find_one({Keys.URL_KEY: url})
-            if page is not None:
-                page[Keys.LAST_VISIT_TIME_KEY] = last_visit_time
+            post = self.pages_collection.find_one({Keys.URL_KEY: url})
+            if post is not None:
+                post[Keys.LAST_VISIT_TIME_KEY] = last_visit_time
                 if blob is not None:
                     post.update(blob)
-                self.pages_collection.save(page)
+                self.pages_collection.save(post)
                 return True
         except:
             self.log_error(traceback.format_exc())

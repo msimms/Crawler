@@ -102,9 +102,11 @@ class Crawler(object):
         page_from_db = self.db.retrieve_page(url)
         now = time.time()
         if page_from_db:
-            self.db.update_page(url, now, blob)
+            success = self.db.update_page(url, now, blob)
         else:
-            self.db.create_page(url, now, blob)
+            success = self.db.create_page(url, now, blob)
+        if not success:
+            self.verbose_print("ERROR: Failed to store " + url + " in the database...")
 
     def parse_content(self, url, content):
         """Parses data that was read from either a file or URL."""
@@ -233,7 +235,7 @@ class Crawler(object):
                 self.error_urls.append(url)
 
                 # Print an error.
-                self.verbose_print("Received HTTP Error " + str(response.status_code) + ".")
+                self.verbose_print("ERROR: Received HTTP Code " + str(response.status_code) + ".")
 
         except:
 
@@ -243,7 +245,7 @@ class Crawler(object):
             # Log an error.
             print(traceback.format_exc())
             print(sys.exc_info()[0])
-            print("Exception requesting data.")
+            print("ERROR: Exception requesting data.")
 
         return False
 
