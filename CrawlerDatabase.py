@@ -63,8 +63,7 @@ class MongoDatabase(Database.Database):
     def retrieve_page(self, url):
         """Retrieve method for a webpage."""
         try:
-            page = self.pages_collection.find_one({Keys.URL_KEY: url})
-            return page
+            return self.pages_collection.find_one({Keys.URL_KEY: url})
         except:
             self.log_error(traceback.format_exc())
             self.log_error(sys.exc_info()[0])
@@ -78,7 +77,7 @@ class MongoDatabase(Database.Database):
                 page[Keys.LAST_VISIT_TIME_KEY] = last_visit_time
                 if blob is not None:
                     post.update(blob)
-                self.pages_collection.save(user)
+                self.pages_collection.save(page)
                 return True
         except:
             self.log_error(traceback.format_exc())

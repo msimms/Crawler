@@ -100,10 +100,11 @@ class Crawler(object):
 
         # Update database.
         page_from_db = self.db.retrieve_page(url)
+        now = time.time()
         if page_from_db:
-            self.db.update_page(url, time.time(), blob)
+            self.db.update_page(url, now, blob)
         else:
-            self.db.create_page(url, time.time(), blob)
+            self.db.create_page(url, now, blob)
 
     def parse_content(self, url, content):
         """Parses data that was read from either a file or URL."""
@@ -199,9 +200,10 @@ class Crawler(object):
             if page_from_db and Keys.LAST_VISIT_TIME_KEY in page_from_db:
 
                 # How many seconds since we were last here?
-                last_visited = time.time() - page_from_db[Keys.LAST_VISIT_TIME_KEY]
-                if last_visited < self.min_revisit_secs:
-                    self.verbose_print("Skipping " + url + " because we visited it " + str(last_visited) + " second(s) ago.")
+                now = time.time()
+                last_visited_diff = now - page_from_db[Keys.LAST_VISIT_TIME_KEY]
+                if last_visited_diff < self.min_revisit_secs:
+                    self.verbose_print("Skipping " + url + " because we visited it " + str(last_visited_diff) + " second(s) ago.")
                     return False
 
         try:
