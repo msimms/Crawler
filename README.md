@@ -1,5 +1,5 @@
 # Crawler
-A modular web crawler
+A modular, extensible, but otherwise fairly simple, web crawler.
 
 ## Installation
 To clone the source code:
