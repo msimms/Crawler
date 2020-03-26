@@ -39,6 +39,11 @@ class ParseModule(object):
     def find_body_tag(self, html_tag):
         return html_tag.find('body')
 
+    def is_interesting_url(self, url):
+        """Returns TRUE if this URL is something this class can parse. Returns FALSE otherwise."""
+        """To be overridden in the child class."""
+        return False
+
     def make_cookies(self, args):
         """Builds the cookies dictionary that will be passed with the HTTP GET requests."""
         """To be overridden in the child class."""

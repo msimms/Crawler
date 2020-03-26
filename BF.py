@@ -61,12 +61,16 @@ class BF(ParseModule.ParseModule):
         search_dict = dict(search_settings = urllib.urlencode(keyword_dict))
         return search_dict
 
+    def is_interesting_url(self, url):
+        """Returns TRUE if this URL is something this class can parse. Returns FALSE otherwise."""
+        parsed = urlparse.urlparse(url)
+        return parsed.netloc.find("brewersfriend.com") == 0 or parsed.netloc.find("www.brewersfriend.com") == 0:
+
     def parse(self, url, soup):
         """Parses the contents downloaded from the URL, extracts the recipe, and stores it in the database."""
 
         # Ignore links from other sites.
-        parsed = urlparse.urlparse(url)
-        if parsed.netloc.find("www.brewersfriend.com") != 0:
+        if not self.is_interesting_url(url):
             print("Invalid network location: " + parsed.netloc)
             return None
 

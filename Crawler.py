@@ -73,10 +73,10 @@ def create_website_object(module_name):
 class Crawler(object):
     """Class containing the URL handlers."""
 
-    def __init__(self, rate_secs, website_obj, db, max_depth, min_revisit_secs, verbose):
+    def __init__(self, rate_secs, website_objs, db, max_depth, min_revisit_secs, verbose):
         """Constructor."""
         self.rate_secs = rate_secs
-        self.website_obj = website_obj
+        self.website_objs = website_objs
         self.db = db
         self.max_depth = max_depth
         self.min_revisit_secs = min_revisit_secs
@@ -116,8 +116,8 @@ class Crawler(object):
 
         # Let the website object extract whatever information it wants from the page.
         blob = None
-        if self.website_obj is not None:
-            blob = self.website_obj.parse(url, soup)
+        for website_obj in self.website_objs:
+            blob = website_obj.parse(url, soup)
 
         # Harvest any new URLs.
         urls_to_crawl = []
@@ -178,6 +178,17 @@ class Crawler(object):
         if url in self.error_urls:
             self.verbose_print("Skipping " + url + " because it has given us problems.")
             return False
+
+        # Only proceed if we have a module that can parse this URL (though proceed if we don't have any modules loaded).
+        if len(self.website_objs) > 0:
+            interesting = False
+            for website_obj in self.website_objs:
+                interesting = website_obj.is_interesting_url(url)
+                if interesting:
+                    break
+            if not interesting:
+                self.verbose_print("Skipping " + url + " because there are no modules to parse it.")
+                return False
 
         # If we've been here before and it was within our revisit window then just skip.
         # Don't bother doing this check for the first URL, since it'll be the one the user told us to crawl.
@@ -269,10 +280,12 @@ def main():
         db.connect(args.mongodb_addr)
 
     # Instantiate the object that implements website-specific logic.
+    website_objs = []
     website_obj = create_website_object(args.website_module)
+    website_objs.append(website_obj)
 
     # Instantiate the object that does the crawling.
-    g_crawler = Crawler(args.rate, website_obj, db, args.max_depth, args.min_revisit_secs, args.verbose)
+    g_crawler = Crawler(args.rate, website_objs, db, args.max_depth, args.min_revisit_secs, args.verbose)
 
     # Register the signal handler.
     signal.signal(signal.SIGINT, signal_handler)
