@@ -26,5 +26,15 @@ python Crawler.py
     [--verbose <true|false>]
 ```
 
+## Examples
+
+```
+python Crawler.py --url https://foo.com --website-modules foo.py --verbose --min-revisit-secs 86400
+```
+
+## Extending
+
+As this is a modular web crawler, it supports modules for dealing with specific websites. This is done by subclassing the `ParseModule` class and then passing the name of that class to the crawler using the `website-modules` option. Multiple modules can be supported by separating each module in the list with a comma.
+
 ## License
 This library is released under the MIT license, see LICENSE for details.
