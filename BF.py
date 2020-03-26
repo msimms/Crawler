@@ -185,7 +185,13 @@ class BF(ParseModule.ParseModule):
             hop = {}
             columns = row.findAll("td")
             for title, column in zip_func(hop_titles, columns):
-                hop[title] = column.get_text().strip()
+
+                # If there's a link in the cell then use the text from the link.
+                href = column.find("a")
+                if href:
+                    hop[title] = href.get_text().strip()
+                else:
+                    hop[title] = column.get_text().strip()
             hops.append(hop)
         recipe['hops'] = hops
 
