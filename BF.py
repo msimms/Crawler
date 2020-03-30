@@ -63,7 +63,7 @@ class BF(ParseModule.ParseModule):
         """Constructor."""
         ParseModule.ParseModule.__init__(self)
 
-    def make_cookies(self, args):
+    def make_cookies(self):
         """Builds the cookies dictionary that will be passed with the HTTP GET requests."""
         keyword_dict = dict(keyword = "session ipa")
         search_dict = dict(search_settings = urllib.urlencode(keyword_dict))
