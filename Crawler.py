@@ -82,6 +82,7 @@ class Crawler(object):
         self.min_revisit_secs = min_revisit_secs
         self.verbose = verbose
         self.running = True
+        self.last_crawl_time = 0 # The timestamp of the last time we visited a URL.
         self.error_urls = [] # These URLs are giving us problems, skip them.
         super(Crawler, self).__init__()
 
@@ -145,12 +146,13 @@ class Crawler(object):
             if self.running is False:
                 return
 
+            # Do we need to throttle ourselves?
+            if self.rate_secs is not None and time.time() - self.last_crawl_time < self.rate_secs:
+                self.verbose_print("Sleeping for " + str(self.rate_secs) + " second(s).")
+                time.sleep(self.rate_secs)
+
             # Crawl the URL.
             crawled = self.crawl_url(parent_url, new_url, current_depth + 1)
-
-            # Wait, but only if we actually did something.
-            if crawled:
-                time.sleep(self.rate_secs)
 
     def crawl_file(self, file_name):
         """Starts crawling from a file."""
@@ -231,6 +233,9 @@ class Crawler(object):
 
                 # Note that we visited this webpage.
                 self.create_or_update_database(url, blob)
+
+                # Make a note of the time.
+                self.last_crawl_time = time.time()
 
                 # Visit the fresh URLs.
                 self.visit_new_urls(url, urls_to_crawl, current_depth)
