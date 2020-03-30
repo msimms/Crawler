@@ -270,7 +270,7 @@ def main():
     parser.add_argument("--url", default="", help="URL to crawl.", required=False)
     parser.add_argument("--rate", type=int, default=1, help="Rate, in seconds, at which to crawl.", required=False)
     parser.add_argument("--max-depth", type=int, default=None, help="Maximum crawl depth.", required=False)
-    parser.add_argument("--min-revisit-secs", type=int, default=None, help="Minimum number of seconds before allowing a URL to be revisited.", required=False)
+    parser.add_argument("--min-revisit-secs", type=int, default=86400, help="Minimum number of seconds before allowing a URL to be revisited.", required=False)
     parser.add_argument("--website-modules", default=None, help="Python modules that implement website-specific logic.", required=False)
     parser.add_argument("--mongodb-addr", default="localhost:27017", help="Address of the mongo database.", required=False)
     parser.add_argument("--verbose", action="store_true", default=False, help="Enables verbose output.", required=False)
