@@ -90,6 +90,12 @@ class Crawler(object):
         if self.verbose:
             print(msg)
 
+    def log_error(self, log_str):
+        """Writes an error message to the log file."""
+        logger = logging.getLogger()
+        logger.error(log_str)
+        self.verbose_print(log_str)
+
     def create_or_update_database(self, url, blob):
         """Helper function."""
         if self.db is None:
@@ -106,7 +112,7 @@ class Crawler(object):
         else:
             success = self.db.create_page(url, now, blob)
         if not success:
-            self.verbose_print("ERROR: Failed to store " + url + " in the database...")
+            self.log_error("ERROR: Failed to store " + url + " in the database...")
 
     def parse_content(self, url, content):
         """Parses data that was read from either a file or URL."""
@@ -238,7 +244,7 @@ class Crawler(object):
                 self.error_urls.append(url)
 
                 # Print an error.
-                self.verbose_print("ERROR: Received HTTP Code " + str(response.status_code) + ".")
+                self.log_error("ERROR: Received HTTP Code " + str(response.status_code) + ".")
 
         except:
 
@@ -246,9 +252,9 @@ class Crawler(object):
             self.error_urls.append(url)
 
             # Log an error.
-            print(traceback.format_exc())
-            print(sys.exc_info()[0])
-            print("ERROR: Exception requesting data.")
+            self.log_error(traceback.format_exc())
+            self.log_error(sys.exc_info()[0])
+            self.log_error("ERROR: Exception requesting data.")
 
         return False
 
