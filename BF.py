@@ -232,6 +232,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--url", default="", help="URL to parse.", required=False)
     parser.add_argument("--dump", action="store_true", default=False, help="Dumps recipes to stdout.", required=False)
+    parser.add_argument("--style", default="", help="Style of beers to dump.", required=False)
     parser.add_argument("--mongodb-addr", default="localhost:27017", help="Address of the mongo database.", required=False)
     args = parser.parse_args()
 
@@ -264,7 +265,11 @@ def main():
         for page in all_pages:
             if Keys.URL_KEY in page and parser.is_interesting_url(page[Keys.URL_KEY]):
                 if TITLE_KEY in page:
-                    print(page)
+                    if len(args.style) > 0:
+                        if STYLE_KEY in page and page[STYLE_KEY].lower().find(args.style.lower()) != -1:
+                            print(page)
+                    else:
+                        print(page)
 
 if __name__ == "__main__":
     main()
