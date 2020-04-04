@@ -212,11 +212,21 @@ class Crawler(object):
             page_from_db = self.db.retrieve_page(url)
             if page_from_db and Keys.LAST_VISIT_TIME_KEY in page_from_db:
 
-                # How many seconds since we were last here?
+                # How long since we were last here?
                 now = time.time()
                 last_visited_diff = now - page_from_db[Keys.LAST_VISIT_TIME_KEY]
                 if last_visited_diff < self.min_revisit_secs:
-                    self.verbose_print("Skipping " + url + " because we visited it " + str(last_visited_diff) + " second(s) ago.")
+                    last_visited_units = "second"
+                    if last_visited_diff >= 86400:
+                        last_visited_diff = last_visited_diff / 86400
+                        last_visited_units = "day"
+                    elif last_visited_diff >= 3600:
+                        last_visited_diff = last_visited_diff / 3600
+                        last_visited_units = "hour"
+                    elif last_visited_diff >= 60:
+                        last_visited_diff = last_visited_diff / 60
+                        last_visited_units = "minute"
+                    self.verbose_print("Skipping " + url + " because we visited it " + str(last_visited_diff) + " " + last_visited_units + "(s) ago.")
                     return False
 
         try:
