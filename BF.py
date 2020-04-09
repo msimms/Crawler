@@ -63,16 +63,19 @@ class BF(ParseModule.ParseModule):
         """Constructor."""
         ParseModule.ParseModule.__init__(self)
 
-    def make_cookies(self):
+    def make_cookies(self, url):
         """Builds the cookies dictionary that will be passed with the HTTP GET requests."""
-        keyword_dict = dict(keyword = "session ipa")
-        search_dict = dict(search_settings = urllib.urlencode(keyword_dict))
-        return search_dict
+        parsed = urlparse.urlparse(url)
+        if parsed.netloc.find("brewersfriend.com") >= 0 and parsed.path.find("search") >= 0:
+            #search_dict = dict(search_settings = urllib.urlencode(dict(keyword = "session ipa", method = "allgrain")))
+            search_dict = dict(search_settings = '%7B%22keyword%22%3A%22session+ipa%22%2C%22method%22%3A%22allgrain%22%7D')
+            return search_dict
+        return None
 
     def is_interesting_url(self, url):
         """Returns TRUE if this URL is something this class can parse. Returns FALSE otherwise."""
         parsed = urlparse.urlparse(url)
-        return parsed.netloc.find("brewersfriend.com") == 0 or parsed.netloc.find("www.brewersfriend.com") == 0
+        return parsed.netloc.find("brewersfriend.com") >= 0
 
     def parse(self, url, soup):
         """Parses the contents downloaded from the URL, extracts the recipe, and stores it in the database."""

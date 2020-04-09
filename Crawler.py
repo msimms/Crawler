@@ -198,7 +198,7 @@ class Crawler(object):
             for website_obj in self.website_objs:
                 interesting = website_obj.is_interesting_url(url)
                 if interesting:
-                    cookies = website_obj.make_cookies()
+                    cookies = website_obj.make_cookies(url)
                     break
             if not interesting:
                 self.verbose_print("Skipping " + url + " because there are no modules to parse it.")

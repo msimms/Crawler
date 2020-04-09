@@ -44,7 +44,7 @@ class ParseModule(object):
         """To be overridden in the child class."""
         return False
 
-    def make_cookies(self):
+    def make_cookies(self, url):
         """Builds the cookies dictionary that will be passed with the HTTP GET requests."""
         """To be overridden in the child class."""
         return False
