@@ -77,7 +77,7 @@ class BR(ParseModule.ParseModule):
 
         # Ignore links from other sites.
         if not self.is_interesting_url(url):
-            print("Invalid network location: " + parsed.netloc)
+            print("Invalid network location for this module: " + url)
             return None
 
         recipe = {}
