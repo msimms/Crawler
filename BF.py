@@ -68,7 +68,7 @@ class BF(ParseModule.ParseModule):
         parsed = urlparse.urlparse(url)
         if parsed.netloc.find("brewersfriend.com") >= 0 and parsed.path.find("search") >= 0:
             #search_dict = dict(search_settings = urllib.urlencode(dict(keyword = "session ipa", method = "allgrain")))
-            search_dict = dict(search_settings = '%7B%22keyword%22%3A%22session+ipa%22%2C%22method%22%3A%22allgrain%22%7D')
+            search_dict = dict(search_settings = '%7B%22keyword%22%3A%22session+ipa%22%2C%22method%22%3A%22allgrain%22%2C%22units%22%3A%22us%22%7D')
             return search_dict
         return None
 
