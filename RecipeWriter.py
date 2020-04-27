@@ -34,6 +34,9 @@ YEASTS_KEY = 'yeasts'
 FERMENTABLES_KEY = 'Fermentable'
 AMOUNT_KEY = 'Amount'
 VARIETY_KEY = 'Variety'
+BOIL_KEY = 'Boil'
+COMMMON_HOPS = ['cascade', 'kent goldings', 'golding', 'citra', 'centennial', 'mosaic', 'columbus', 'equinox']
+UNITS = ['lb', 'oz', 'tsp', 'pkg', 'ounce', 'teaspoon', 'cup', 'pound', 'gal']
 
 
 class RecipeWriter(object):
@@ -46,25 +49,39 @@ class RecipeWriter(object):
         new_grains = []
         new_hops = []
 
+        search_list_func = lambda x,y : x.find(y) >= 0
+        ignore_strs = ['(', '[', '#', '-', 'sugar', 'water', 'total', 'dme', 'honey', 'syrup', 'moss', 'yeast', 'extract']
+
         # Normalize grains
         for grain in grains:
+
+            # Was this formatted in a nice is python dictionary for us?
             if isinstance(grain, dict):
+                if AMOUNT_KEY in grain and FERMENTABLES_KEY in grain:
+                    amount = grain[AMOUNT_KEY]
+                    fermentables = grain[FERMENTABLES_KEY]
+                    offset = fermentables.find(amount)
+                    if offset > 0:
+                        grain[FERMENTABLES_KEY] = fermentables[offset + len(amount):].strip()
                 new_grains.append(grain)
             else:
-                parts = grain.split(' ')
+                # Does the string contain junk?
+                matched_ignore_strs = [search_list_func(grain.lower(), i) for i in ignore_strs]
+                if any(matched_ignore_strs):
+                    continue
 
                 # These are things we might find in the string.
                 amount = ""
                 desc = ""
+                boil = ""
 
                 # Should start with an amount.
+                parts = grain.split(' ')
                 amount = parts[0]
                 del parts[0]
 
                 # Is the second part the units?
-                units = ['lb', 'oz', 'tsp', 'pkg', 'ounce', 'teaspoon']
-                units_func = lambda x,y : x.find(y) >= 0
-                matched_units = [units_func(parts[0], i) for i in units]
+                matched_units = [search_list_func(parts[0].lower(), i) for i in UNITS]
                 if any(matched_units):
                     amount += " "
                     amount += parts[0]
@@ -75,29 +92,44 @@ class RecipeWriter(object):
                 # Build the description string and figure out if it is grains or hops
                 # because some websites lump them together.
                 is_grain = True
+                is_hop = False
+                in_boil = False
                 for part in parts:
+
                     part_lower = part.lower()
-                    if part_lower.find('hop') >= 0 or part_lower.find('boil') >= 0:
+
+                    if part_lower in COMMMON_HOPS:
                         is_grain = False
-                    desc += part
-                    desc += " "
-                desc.strip()
+                        is_hop = True
+
+                    elif is_hop:
+                        in_boil = in_boil or part_lower.find('at') >= 0 or part_lower.find('boil')
+                        if in_boil and part_lower.find('hop') >= 0:
+                            boil += part
+
+                    if not in_boil:
+                        desc += part
+                        desc += " "
 
                 # Did we find grains?
-                if is_grain and len(desc) > 0 and len(amount) > 0:
+                if is_grain and len(desc) > 0:
                     grain = {}
-                    grain[FERMENTABLES_KEY] = desc
-                    grain[AMOUNT_KEY] = amount
+                    grain[FERMENTABLES_KEY] = desc.strip()
+                    if len(amount) > 0:
+                        grain[AMOUNT_KEY] = amount
                     new_grains.append(grain)
 
                 # Did we find any hops?
-                elif len(desc) > 0 and len(amount) > 0:
+                elif is_hop and len(desc) > 0:
                     hops = {}
-                    hops[HOPS_KEY] = desc
-                    hops[AMOUNT_KEY] = amount
+                    hops[VARIETY_KEY] = desc.strip()
+                    if len(amount) > 0:
+                        hops[AMOUNT_KEY] = amount
+                    if len(boil) > 0:
+                        hops[BOIL_KEY] = boil
                     new_hops.append(hops)
 
-        # Normalize hops
+        # Normalize hops.
         for hop in hops:
             if isinstance(hop, dict):
                 new_hops.append(hop)
@@ -140,20 +172,28 @@ class RecipeWriter(object):
         print("------")
         print("Grains")
         print("------")
-        #sorted_grains = sorted(grains, key=get_grains_sort_key)
+        fermentable_names = []
         for grain in grains:
-            print(grain)
+            fermentable_names.append(grain[FERMENTABLES_KEY])
+        counted_fermentables = collections.Counter(fermentable_names).most_common()
+        for fermentable in counted_fermentables:
+            print(fermentable)
 
         print("----")
         print("Hops")
         print("----")
+        hop_names = []
         for hop in hops:
-            print(hop)
+            hop_names.append(hop[VARIETY_KEY])
+        counted_hop_names = collections.Counter(hop_names).most_common()
+        for hop_name in counted_hop_names:
+            print(hop_name)
 
         print("------")
         print("Yeasts")
         print("------")
-        for yeast in collections.Counter(yeasts):
+        counted_yeasts = collections.Counter(yeasts).most_common()
+        for yeast in counted_yeasts:
             print(yeast)
 
 def main():
