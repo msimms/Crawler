@@ -37,7 +37,7 @@ FERMENTABLES_KEY = 'Fermentable'
 AMOUNT_KEY = 'Amount'
 VARIETY_KEY = 'Variety'
 BOIL_KEY = 'Boil'
-COMMMON_HOPS = ['cascade', 'centennial', 'citra', 'chinook', 'columbus', 'equinox', 'fuggles', 'kent goldings', 'golding', 'magnum', 'mosaic', 'victory', 'warrior']
+COMMMON_HOPS = ['amarillo', 'cascade', 'centennial', 'citra', 'chinook', 'columbus', 'equinox', 'fuggles', 'kent goldings', 'golding', 'magnum', 'mosaic', 'victory', 'warrior']
 UNITS = ['lb', 'oz', 'g', 'tsp', 'pkg', 'ounce', 'teaspoon', 'cup', 'pound', 'gal']
 
 
@@ -46,6 +46,21 @@ class RecipeWriter(object):
 
     def __init__(self):
         super(RecipeWriter, self).__init__()
+
+    def normalize_grain_name(self, grain_name):
+        norm_name = ""
+        parts = grain_name.split(' ')
+        for part in parts:
+            part_lower = part.lower()
+            if len(part_lower) == 0:
+                continue
+            if part_lower[0] in ['(', '[']:
+                break
+            if part_lower is not 'malt':
+                norm_name += part
+                norm_name += " "
+        print(parts)
+        return norm_name.strip()
 
     def normalize_grains_and_hops(self, grains, hops):
         """Since the recipes were collected from multiple sites, this attempts to normalize their structure."""
@@ -56,7 +71,7 @@ class RecipeWriter(object):
         new_hops = []
 
         search_list_func = lambda x,y : x.find(y) >= 0
-        ignore_strs = ['[', '#', 'dme', 'extract', 'honey', 'moss', 'sugar', 'syrup', 'total', 'water', 'yeast']
+        ignore_strs = ['[', '#', 'dme', 'extract', 'gypsum', 'honey', 'moss', 'sugar', 'syrup', 'total', 'water', 'whirlfloc', 'yeast']
 
         # Normalize grains, some websites lump the hops in with the grains for whatever reason.
         for grain in grains:
@@ -80,7 +95,12 @@ class RecipeWriter(object):
                     if any(matched_ignore_strs):
                         continue
 
-                    new_grains.append(grain)
+                    # Normalize the grain name.
+                    norm_name = self.normalize_grain_name(grain[FERMENTABLES_KEY])
+                    if len(norm_name) > 1:
+                        grain[FERMENTABLES_KEY] = norm_name
+                        new_grains.append(grain)
+    
             else:
                 # Does the string contain junk?
                 matched_ignore_strs = [search_list_func(grain.lower(), i) for i in ignore_strs]
@@ -127,10 +147,6 @@ class RecipeWriter(object):
                     if len(part_lower) == 0:
                         continue
 
-                    # Some recipes have comments in paraenthesis or brackets at the end of the string. We don't need them.
-                    if part_lower[0] in ['(', '[']:
-                        break
-
                     # Did someone put hops in the grains category?
                     if part_lower in COMMMON_HOPS:
                         is_grain = False
@@ -145,10 +161,13 @@ class RecipeWriter(object):
                         desc += part
                         desc += " "
 
+                # Cleanup whatever we extracted for name of the grain.
+                desc = self.normalize_grain_name(desc)
+
                 # Did we find grains?
                 if is_grain and len(desc) > 0:
                     grain = {}
-                    grain[FERMENTABLES_KEY] = desc.strip()
+                    grain[FERMENTABLES_KEY] = desc
                     if len(amount) > 0:
                         grain[AMOUNT_KEY] = amount
                     new_grains.append(grain)
@@ -264,14 +283,14 @@ class RecipeWriter(object):
         return json.dumps(all_data)
 
     def list_styles(self, db):
+        all_styles = set()
         all_pages = db.retrieve_all_pages()
 
-        # The recipes were collected from various sites and will need normalizing
-        # after we filter for the recipes that match the search criteria.
         for page in all_pages:
-
             if STYLE_KEY in page:
-                pass
+                all_styles.add(page[STYLE_KEY])
+
+        return all_styles
 
 def main():
     """This is the entry point that is used to perform unit tests on this module."""
