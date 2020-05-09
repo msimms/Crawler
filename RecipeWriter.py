@@ -26,6 +26,7 @@ import CrawlerDatabase
 import argparse
 import collections
 import json
+import re
 
 ID_KEY = '_id'
 STYLE_KEY = 'style'
@@ -38,8 +39,9 @@ AMOUNT_KEY = 'Amount'
 VARIETY_KEY = 'Variety'
 BOIL_KEY = 'Boil'
 COMMMON_HOPS = ['amarillo', 'cascade', 'centennial', 'citra', 'chinook', 'columbus', 'equinox', 'fuggles', 'kent goldings', 'golding', 'magnum', 'mosaic', 'victory', 'warrior']
-UNITS = ['lb', 'oz', 'g', 'tsp', 'pkg', 'ounce', 'teaspoon', 'cup', 'pound', 'gal']
+UNITS = ['lb', 'oz', 'g', 'tsp', 'tbsp', 'pkg', 'ounce', 'teaspoon', 'cup', 'pound', 'gal']
 
+SEARCH_LIST_FUNC = lambda x,y : x.find(y) >= 0
 
 class RecipeWriter(object):
     """Reads beer recipes from the database and generates a new recipe."""
@@ -47,30 +49,98 @@ class RecipeWriter(object):
     def __init__(self):
         super(RecipeWriter, self).__init__()
 
+    def capitalize(self, input):
+        """Utility function for capitalizing the first letter in a string."""
+        input_parts = list(input)
+        input_parts[0] = input_parts[0].upper()
+        return "".join(input_parts)
+
     def normalize_grain_name(self, grain_name):
+        """Tries to cleanup the various names that people use for the same grain."""
+        pattern = re.compile("Caramel.*/.*Crystal", re.IGNORECASE)
+        grain_name = pattern.sub("Crystal", grain_name)
+
+        pattern = re.compile("American 2-row", re.IGNORECASE)
+        grain_name = pattern.sub("Pale 2-Row", grain_name)
+
+        pattern = re.compile("Pale Ale 2-Row", re.IGNORECASE)
+        grain_name = pattern.sub("Pale 2-Row", grain_name)
+
+        pattern = re.compile("2-row", re.IGNORECASE)
+        grain_name = pattern.sub("2-Row", grain_name)
+
+        pattern = re.compile("Barley, Flaked", re.IGNORECASE)
+        grain_name = pattern.sub("Flaked Barley", grain_name)
+
+        pattern = re.compile("Oats, Flaked", re.IGNORECASE)
+        grain_name = pattern.sub("Flaked Oats", grain_name)
+
+        pattern = re.compile("Crystal.*-", re.IGNORECASE)
+        grain_name = pattern.sub("Crystal", grain_name)
+
+        pattern = re.compile("Caramel", re.IGNORECASE)
+        grain_name = pattern.sub("Crystal", grain_name)
+
+        pattern = re.compile("Cara-Pils/Dextrine", re.IGNORECASE)
+        grain_name = pattern.sub("Carapils", grain_name)
+
+        pattern = re.compile("Cara-Pils", re.IGNORECASE)
+        grain_name = pattern.sub("Carapils", grain_name)
+
         norm_name = ""
         parts = grain_name.split(' ')
         for part in parts:
+
             part_lower = part.lower()
             if len(part_lower) == 0:
                 continue
             if part_lower[0] in ['(', '[']:
                 break
-            if part_lower is not 'malt':
+
+            # The world 'malt' is redundant so ignore it.
+            if part_lower != 'malt':
+
+                # Make sure the first letter is capitalized.
+                part = self.capitalize(part)
                 norm_name += part
                 norm_name += " "
-        print(parts)
-        return norm_name.strip()
 
-    def normalize_grains_and_hops(self, grains, hops):
+        norm_name = norm_name.strip()
+        if norm_name == "Pale":
+            norm_name = "Pale 2-Row"
+        return norm_name
+
+    def normalize_amount_str(self, amount):
+        """Tries to cleanup the various ways people express amounts."""
+        parts = amount.split(' ')
+        if len(parts) < 2: # Sanity check
+            return amount
+
+        if any([SEARCH_LIST_FUNC(amount.lower(), i) for i in ['lb', 'pound']]):
+            parts[1] = "lbs"
+        if any([SEARCH_LIST_FUNC(amount.lower(), i) for i in ['kg', 'kilogram']]):
+            parts[0] = str(float(parts[0]) * 2.2)
+            parts[1] = "lbs"
+        if any([SEARCH_LIST_FUNC(amount.lower(), i) for i in ['oz', 'ounce']]):
+            parts[1] = "ounces"
+        if any([SEARCH_LIST_FUNC(amount.lower(), i) for i in ['gal', 'gallon', 'us gallon']]):
+            parts[1] = "gallons"
+        if any([SEARCH_LIST_FUNC(amount.lower(), i) for i in ['liter', 'litre']]):
+            parts[0] = str(float(parts[0]) * 0.264172)
+            parts[1] = "gallons"
+
+        amount = parts[0] + " " + parts[1]
+        return amount
+
+    def normalize_grains_and_hops(self, grains, hops, yield_size):
         """Since the recipes were collected from multiple sites, this attempts to normalize their structure."""
+        """Some recipe writers put the grains and the hops together, so we have to deal with that."""
         if grains is None:
             return grains, hops
 
         new_grains = []
         new_hops = []
 
-        search_list_func = lambda x,y : x.find(y) >= 0
         ignore_strs = ['[', '#', 'dme', 'extract', 'gypsum', 'honey', 'moss', 'sugar', 'syrup', 'total', 'water', 'whirlfloc', 'yeast']
 
         # Normalize grains, some websites lump the hops in with the grains for whatever reason.
@@ -91,7 +161,7 @@ class RecipeWriter(object):
                         grain[FERMENTABLES_KEY] = fermentables[offset + len(amount):].strip()
 
                     # Does the string contain junk?
-                    matched_ignore_strs = [search_list_func(grain[FERMENTABLES_KEY].lower(), i) for i in ignore_strs]
+                    matched_ignore_strs = [SEARCH_LIST_FUNC(grain[FERMENTABLES_KEY].lower(), i) for i in ignore_strs]
                     if any(matched_ignore_strs):
                         continue
 
@@ -100,10 +170,14 @@ class RecipeWriter(object):
                     if len(norm_name) > 1:
                         grain[FERMENTABLES_KEY] = norm_name
                         new_grains.append(grain)
-    
+
+                    # Normalize the amount.
+                    amount = self.normalize_amount_str(amount)
+                    grain[AMOUNT_KEY] = amount
+
             else:
                 # Does the string contain junk?
-                matched_ignore_strs = [search_list_func(grain.lower(), i) for i in ignore_strs]
+                matched_ignore_strs = [SEARCH_LIST_FUNC(grain.lower(), i) for i in ignore_strs]
                 if any(matched_ignore_strs):
                     continue
 
@@ -122,10 +196,11 @@ class RecipeWriter(object):
                     continue
 
                 # Is the second part the units?
-                matched_units = [search_list_func(parts[0].lower(), i) for i in UNITS]
+                matched_units = [SEARCH_LIST_FUNC(parts[0].lower(), i) for i in UNITS]
                 if any(matched_units):
                     amount += " "
                     amount += parts[0]
+                    amount = self.normalize_amount_str(amount)
                     del parts[0]
                 if '-' in parts:
                     parts.remove('-')
@@ -189,8 +264,15 @@ class RecipeWriter(object):
 
         return new_grains, new_hops
 
-    def normalize_yeast(self, yeast):
-        return yeast
+    def compute_avg_amount(self, grains, grain_name):
+        avg_amount = 0.0
+        count = 0
+        for grain in grains:
+            if grain[FERMENTABLES_KEY] == grain_name:
+                if AMOUNT_KEY in grain:
+                    avg_amount = avg_amount + float(grain[AMOUNT_KEY][0])
+                    count = count + 1
+        return avg_amount / count
 
     def generate_avg_recipe(self, db, style):
         all_pages = db.retrieve_all_pages()
@@ -208,20 +290,24 @@ class RecipeWriter(object):
             if STYLE_KEY in page and page[STYLE_KEY].lower().find(lower_style) >= 0:
                 grain_value = None
                 hops_value = None
+                yield_size = None
 
                 if GRAINS_KEY in page:
                     grain_value = page[GRAINS_KEY]
                 if HOPS_KEY in page:
                     hops_value = page[HOPS_KEY]
+                if YIELD_SIZE_KEY in page:
+                    yield_size = self.normalize_amount_str(page[YIELD_SIZE_KEY])
 
-                norm_grains, norm_hops = self.normalize_grains_and_hops(grain_value, hops_value)
+                norm_grains, norm_hops = self.normalize_grains_and_hops(grain_value, hops_value, yield_size)
 
                 grains.extend(norm_grains)
                 hops.extend(norm_hops)
+                yeasts.extend(page[YEASTS_KEY])
 
-                if YEASTS_KEY in page:
-                    yeast = self.normalize_yeast(page[YEASTS_KEY])
-                    yeasts.extend(yeast)
+        #
+        # Print the normalized inputs.
+        #
 
         print("------")
         print("Grains")
@@ -250,13 +336,52 @@ class RecipeWriter(object):
         for yeast in counted_yeasts:
             print(yeast)
 
+        #
+        # Do we have enough to write the recipe?
+        #
+
+        if len(counted_fermentables) < 3:
+            print("ERROR: Not enough data to write a recipe.")
+        if len(counted_hop_names) < 3:
+            print("ERROR: Not enough data to write a recipe.")
+        if len(counted_yeasts) < 1:
+            print("ERROR: Not enough data to write a recipe.")
+
+        #
+        # Write the recipe
+        #
+
+        print("------")
+        print("Recipe")
+        print("------")
+
+        # Grains
+        grain_name = counted_fermentables[0][0]
+        grain_amount = self.compute_avg_amount(grains, grain_name)
+        print(grain_name + ", {:.2f}".format(grain_amount) + " lbs")
+        grain_name = counted_fermentables[1][0]
+        grain_amount = self.compute_avg_amount(grains, grain_name)
+        print(grain_name + ", {:.2f}".format(grain_amount) + " lbs")
+        grain_name = counted_fermentables[2][0]
+        grain_amount = self.compute_avg_amount(grains, grain_name)
+        print(grain_name + ", {:.2f}".format(grain_amount) + " ounces")
+        grain_name = counted_fermentables[3][0]
+        grain_amount = self.compute_avg_amount(grains, grain_name)
+        print(grain_name + ", {:.2f}".format(grain_amount) + " lbs")
+
+        # Hops
+        print(counted_hop_names[0][0] + " Hops")
+        print(counted_hop_names[1][0] + " Hops")
+        print(counted_hop_names[2][0] + " Hops")
+
+        # Yeast
+        print(counted_yeasts[0][0])
+
     def export_to_json(self, db):
         """Exports the beer recipes to JSON."""
         all_data = []
         all_pages = db.retrieve_all_pages()
         for page in all_pages:
-            grain_value = None
-            hops_value = None
 
             if GRAINS_KEY in page:
                 grain_value = page[GRAINS_KEY]
@@ -266,13 +391,11 @@ class RecipeWriter(object):
             if HOPS_KEY in page:
                 hops_value = page[HOPS_KEY]
 
-            norm_grains, norm_hops = self.normalize_grains_and_hops(grain_value, hops_value)
+            yield_size = None
+            if YIELD_SIZE_KEY in page:
+                yield_size = self.normalize_amount_str(page[YIELD_SIZE_KEY])
 
-            page[GRAINS_KEY] = norm_grains
-            page[HOPS_KEY] = norm_hops
-
-            if YEASTS_KEY in page:
-                page[YEASTS_KEY] = self.normalize_yeast(page[YEASTS_KEY])
+            page[GRAINS_KEY], page[HOPS_KEY] = self.normalize_grains_and_hops(grain_value, hops_value, yield_size)
 
             # This isn't serializable so get rid of it.
             if ID_KEY in page:
