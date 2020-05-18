@@ -55,6 +55,14 @@ class RecipeWriter(object):
         input_parts[0] = input_parts[0].upper()
         return "".join(input_parts)
 
+    def remove_letters(self, input):
+        """Utility function for removing all letters from a string."""
+        new = ""
+        for letter in input:
+            if not(letter.isalpha()):
+                new += letter
+        return new
+
     def normalize_grain_name(self, grain_name):
         """Tries to cleanup the various names that people use for the same grain."""
         pattern = re.compile("Caramel.*/.*Crystal", re.IGNORECASE)
@@ -110,29 +118,42 @@ class RecipeWriter(object):
             norm_name = "Pale 2-Row"
         return norm_name
 
-    def normalize_amount_str(self, amount):
+    def to_number(self, num_str):
+        """Utility method for string to number conversion and cleanup."""
+        new_str = self.remove_letters(num_str)
+        if new_str == "1--1/2": # Filty hack to handle an annoying case
+            return float(1.5)
+        fraction_parts = new_str.split('/')
+        if len(fraction_parts) == 1:
+            return float(new_str)
+        return float(fraction_parts[0]) / float(fraction_parts[1])
+
+    def normalize_amount_str(self, amount, scale):
         """Tries to cleanup the various ways people express amounts."""
         parts = amount.split(' ')
         if len(parts) < 2: # Sanity check
             return amount
 
         if any([SEARCH_LIST_FUNC(amount.lower(), i) for i in ['lb', 'pound']]):
+            parts[0] = str(self.to_number(parts[0]) * scale)
             parts[1] = "lbs"
         if any([SEARCH_LIST_FUNC(amount.lower(), i) for i in ['kg', 'kilogram']]):
-            parts[0] = str(float(parts[0]) * 2.2)
+            parts[0] = str(self.to_number(parts[0]) * scale * 2.2)
             parts[1] = "lbs"
         if any([SEARCH_LIST_FUNC(amount.lower(), i) for i in ['oz', 'ounce']]):
-            parts[1] = "ounces"
+            parts[0] = str(self.to_number(parts[0]) * scale * 0.0625)
+            parts[1] = "lbs"
         if any([SEARCH_LIST_FUNC(amount.lower(), i) for i in ['gal', 'gallon', 'us gallon']]):
+            parts[0] = str(self.to_number(parts[0]) * scale)
             parts[1] = "gallons"
         if any([SEARCH_LIST_FUNC(amount.lower(), i) for i in ['liter', 'litre']]):
-            parts[0] = str(float(parts[0]) * 0.264172)
+            parts[0] = str(self.to_number(parts[0]) * scale * 0.264172)
             parts[1] = "gallons"
 
         amount = parts[0] + " " + parts[1]
         return amount
 
-    def normalize_grains_and_hops(self, grains, hops, yield_size):
+    def normalize_grains_and_hops(self, grains, hops, scale):
         """Since the recipes were collected from multiple sites, this attempts to normalize their structure."""
         """Some recipe writers put the grains and the hops together, so we have to deal with that."""
         if grains is None:
@@ -165,15 +186,15 @@ class RecipeWriter(object):
                     if any(matched_ignore_strs):
                         continue
 
+                    # Normalize the amount.
+                    amount = self.normalize_amount_str(amount, scale)
+                    grain[AMOUNT_KEY] = amount
+
                     # Normalize the grain name.
                     norm_name = self.normalize_grain_name(grain[FERMENTABLES_KEY])
                     if len(norm_name) > 1:
                         grain[FERMENTABLES_KEY] = norm_name
                         new_grains.append(grain)
-
-                    # Normalize the amount.
-                    amount = self.normalize_amount_str(amount)
-                    grain[AMOUNT_KEY] = amount
 
             else:
                 # Does the string contain junk?
@@ -200,7 +221,7 @@ class RecipeWriter(object):
                 if any(matched_units):
                     amount += " "
                     amount += parts[0]
-                    amount = self.normalize_amount_str(amount)
+                    amount = self.normalize_amount_str(amount, scale)
                     del parts[0]
                 if '-' in parts:
                     parts.remove('-')
@@ -265,16 +286,21 @@ class RecipeWriter(object):
         return new_grains, new_hops
 
     def compute_avg_amount(self, grains, grain_name):
+        """Looks through the (normalized) grains list for the specified grain and compute the average amount used."""
         avg_amount = 0.0
-        count = 0
+        count = 0.0
         for grain in grains:
             if grain[FERMENTABLES_KEY] == grain_name:
                 if AMOUNT_KEY in grain:
-                    avg_amount = avg_amount + float(grain[AMOUNT_KEY][0])
-                    count = count + 1
+                    amount_str_parts = grain[AMOUNT_KEY].split(' ')
+                    temp_amount = float(amount_str_parts[0])
+                    avg_amount = avg_amount + temp_amount
+                    count = count + 1.0
         return avg_amount / count
 
-    def generate_avg_recipe(self, db, style):
+    def generate_avg_recipe(self, db, style, desired_yield):
+        """Looks through the database of crawled web pages, gets all beer recipes of the given style, normalizes the amounts"""
+        """and writes a recipe using the most popular grains and hops and the avg amount in which they appear."""
         all_pages = db.retrieve_all_pages()
         lower_style = style.lower()
 
@@ -291,15 +317,17 @@ class RecipeWriter(object):
                 grain_value = None
                 hops_value = None
                 yield_size = None
+                scale = None # Amount to scale the recipe by; will try to nomalize on a 3 gallon yield
 
                 if GRAINS_KEY in page:
                     grain_value = page[GRAINS_KEY]
                 if HOPS_KEY in page:
                     hops_value = page[HOPS_KEY]
                 if YIELD_SIZE_KEY in page:
-                    yield_size = self.normalize_amount_str(page[YIELD_SIZE_KEY])
+                    yield_size = self.normalize_amount_str(page[YIELD_SIZE_KEY], 1.0)
+                    scale = desired_yield / float(yield_size.split(' ')[0]) 
 
-                norm_grains, norm_hops = self.normalize_grains_and_hops(grain_value, hops_value, yield_size)
+                norm_grains, norm_hops = self.normalize_grains_and_hops(grain_value, hops_value, scale)
 
                 grains.extend(norm_grains)
                 hops.extend(norm_hops)
@@ -364,7 +392,7 @@ class RecipeWriter(object):
         print(grain_name + ", {:.2f}".format(grain_amount) + " lbs")
         grain_name = counted_fermentables[2][0]
         grain_amount = self.compute_avg_amount(grains, grain_name)
-        print(grain_name + ", {:.2f}".format(grain_amount) + " ounces")
+        print(grain_name + ", {:.2f}".format(grain_amount) + " lbs")
         grain_name = counted_fermentables[3][0]
         grain_amount = self.compute_avg_amount(grains, grain_name)
         print(grain_name + ", {:.2f}".format(grain_amount) + " lbs")
@@ -390,12 +418,10 @@ class RecipeWriter(object):
 
             if HOPS_KEY in page:
                 hops_value = page[HOPS_KEY]
+            else:
+                hops_value = None
 
-            yield_size = None
-            if YIELD_SIZE_KEY in page:
-                yield_size = self.normalize_amount_str(page[YIELD_SIZE_KEY])
-
-            page[GRAINS_KEY], page[HOPS_KEY] = self.normalize_grains_and_hops(grain_value, hops_value, yield_size)
+            page[GRAINS_KEY], page[HOPS_KEY] = self.normalize_grains_and_hops(grain_value, hops_value, 1.0)
 
             # This isn't serializable so get rid of it.
             if ID_KEY in page:
@@ -440,7 +466,7 @@ def main():
     if args.style is not None:
 
         writer = RecipeWriter()
-        writer.generate_avg_recipe(db, args.style)
+        writer.generate_avg_recipe(db, args.style, 3.0)
 
     # Are we exporting the recipes?
     if args.json:
