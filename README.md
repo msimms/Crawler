@@ -1,5 +1,5 @@
 # Crawler
-A modular, extensible, but otherwise fairly simple, web crawler.
+A modular, extensible, but otherwise fairly simple, web crawler. The basic idea behind this project is to develop a generic web crawler that allows the user to write plugins for scraping site-specific information.  
 
 ## Installation
 To clone the source code:
