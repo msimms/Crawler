@@ -23,7 +23,8 @@ python Crawler.py
     [--min-revisit-secs <minimum number of seconds before allowing a URL to be revisited>\
     [--website-modules <command separated list of the Python modules that will parse each page>]
     [--mongodb-addr <URL of the mongodb instance which will store the result, defaults to localhost:27017>]
-    [--verbose <true|false>]
+    [--crawl-other-websites]
+    [--verbose]
 ```
 
 ## Examples
@@ -31,6 +32,12 @@ python Crawler.py
 ```
 python Crawler.py --url https://foo.com --website-modules foo.py --verbose --min-revisit-secs 86400
 ```
+The above example will crawl links from foo.com, parsing the results using the foo.py module, while printing verbose output. Pages will not be revisited unless it has been more than one day since the last visit.
+
+```
+python Crawler.py --url https://foo.com --website-modules foo.py --verbose --crawl-other-websites --min-revisit-secs 86400
+```
+The above example will crawl links from foo.com as well as any page linked to from foo.com. Otherwise, it is the same as the previous example.
 
 ## Extending
 
