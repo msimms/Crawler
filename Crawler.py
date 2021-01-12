@@ -70,16 +70,24 @@ def create_website_object(module_name):
         return module.create()
     return None
 
+def get_url_root(url):
+    p = urlparse.urlparse(url)
+    if p.hostname and len(p.hostname) > 0:
+        return p.hostname
+    return p.path
+
 class Crawler(object):
     """Class containing the URL handlers."""
 
-    def __init__(self, rate_secs, website_objs, db, max_depth, min_revisit_secs, verbose):
+    def __init__(self, seed_url, rate_secs, website_objs, db, max_depth, min_revisit_secs, crawl_other_websites, verbose):
         """Constructor."""
+        self.seed_url = seed_url
         self.rate_secs = rate_secs
         self.website_objs = website_objs
         self.db = db
         self.max_depth = max_depth
         self.min_revisit_secs = min_revisit_secs
+        self.crawl_other_websites = crawl_other_websites
         self.verbose = verbose
         self.running = True
         self.last_crawl_time = 0 # The timestamp of the last time we visited a URL.
@@ -185,6 +193,12 @@ class Crawler(object):
         parts = url.split('#')
         url = parts[0]
 
+        # Is this URL from the seed website? Do we care?
+        if not self.crawl_other_websites:
+            root_url = get_url_root(url)
+            if root_url != self.seed_url:
+                return False
+
         # If this URL has given us problems then skip it.
         if url in self.error_urls:
             self.verbose_print("Skipping " + url + " because it has given us problems.")
@@ -286,8 +300,9 @@ def main():
     parser.add_argument("--rate", type=int, default=1, help="Rate, in seconds, at which to crawl.", required=False)
     parser.add_argument("--max-depth", type=int, default=None, help="Maximum crawl depth.", required=False)
     parser.add_argument("--min-revisit-secs", type=int, default=86400, help="Minimum number of seconds before allowing a URL to be revisited.", required=False)
-    parser.add_argument("--website-modules", default=None, help="Python modules that implement website-specific logic.", required=False)
+    parser.add_argument("--website-modules", default="", help="Python modules that implement website-specific logic.", required=False)
     parser.add_argument("--mongodb-addr", default="localhost:27017", help="Address of the mongo database.", required=False)
+    parser.add_argument("--crawl-other-websites", action="store_true", default=False, help="If not set will stay on links that belong to the seed URL.", required=False)
     parser.add_argument("--verbose", action="store_true", default=False, help="Enables verbose output.", required=False)
 
     try:
@@ -296,9 +311,17 @@ def main():
         parser.error(e)
         sys.exit(1)
 
+    # Print the settings.
+    print("Using the following settings:")
+    var_args = vars(args)
+    for arg_name in var_args:
+        print("* " + arg_name + ": " + str(var_args[arg_name]))
+    print("")
+
     # Sanity check.
     if len(args.file) == 0 and len(args.url) == 0:
         print("Neither a file nor a URL to crawl was specified.")
+        parser.print_help(sys.stderr)
         sys.exit(1)
 
     # Instantiate the object that connects to the database.
@@ -309,13 +332,18 @@ def main():
 
     # Instantiate the object that implements website-specific logic.
     website_objs = []
-    website_module_names = args.website_modules.split(',')
-    for website_module_name in website_module_names:
-        website_obj = create_website_object(website_module_name)
-        website_objs.append(website_obj)
+    if len(args.website_modules) > 0:
+        website_module_names = args.website_modules.split(',')
+        for website_module_name in website_module_names:
+            website_obj = create_website_object(website_module_name)
+            website_objs.append(website_obj)
+
+    seed_url = ""
+    if len(args.url) > 0:
+        seed_url = get_url_root(args.url)
 
     # Instantiate the object that does the crawling.
-    g_crawler = Crawler(args.rate, website_objs, db, args.max_depth, args.min_revisit_secs, args.verbose)
+    g_crawler = Crawler(seed_url, args.rate, website_objs, db, args.max_depth, args.min_revisit_secs, args.crawl_other_websites, args.verbose)
 
     # Register the signal handler.
     signal.signal(signal.SIGINT, signal_handler)
