@@ -47,12 +47,12 @@ class MongoDatabase(Database.Database):
             self.log_error("Could not connect to MongoDB: %s" % e)
         return False
 
-    def create_page(self, url, last_visit_time, blob):
+    def create_page(self, url, last_visit_time, raw_content, extracted_content):
         """Create method for a webpage."""
         try:
-            post = {Keys.URL_KEY: url, Keys.LAST_VISIT_TIME_KEY: last_visit_time}
-            if blob is not None:
-                post.update(blob)
+            post = { Keys.URL_KEY: url, Keys.LAST_VISIT_TIME_KEY: last_visit_time, Keys.PAGE_SOURCE_KEY: raw_content }
+            if extracted_content is not None:
+                post.update(extracted_content)
             self.pages_collection.insert(post)
             return True
         except:
@@ -78,14 +78,15 @@ class MongoDatabase(Database.Database):
             self.log_error(sys.exc_info()[0])
         return None
 
-    def update_page(self, url, last_visit_time, blob):
+    def update_page(self, url, last_visit_time, raw_content, extracted_content):
         """Update method for a webpage."""
         try:
             post = self.pages_collection.find_one({Keys.URL_KEY: url})
             if post is not None:
                 post[Keys.LAST_VISIT_TIME_KEY] = last_visit_time
-                if blob is not None:
-                    post.update(blob)
+                post[Keys.PAGE_SOURCE_KEY] = raw_content
+                if extracted_content is not None:
+                    post.update(extracted_content)
                 self.pages_collection.save(post)
                 return True
         except:

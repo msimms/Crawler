@@ -25,3 +25,4 @@
 
 URL_KEY = 'url'
 LAST_VISIT_TIME_KEY = 'last visit time'
+PAGE_SOURCE_KEY = 'page source'

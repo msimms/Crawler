@@ -105,7 +105,7 @@ class Crawler(object):
         logger.error(log_str)
         self.verbose_print(log_str)
 
-    def create_or_update_database(self, url, blob):
+    def create_or_update_database(self, url, raw_content, extracted_content):
         """Helper function."""
         if self.db is None:
             return
@@ -117,32 +117,32 @@ class Crawler(object):
         page_from_db = self.db.retrieve_page(url)
         now = time.time()
         if page_from_db:
-            success = self.db.update_page(url, now, blob)
+            success = self.db.update_page(url, now, raw_content, extracted_content)
         else:
-            success = self.db.create_page(url, now, blob)
+            success = self.db.create_page(url, now, raw_content, extracted_content)
         if not success:
             self.log_error("ERROR: Failed to store " + url + " in the database...")
 
-    def parse_content(self, url, content):
+    def parse_content(self, url, raw_content):
         """Parses data that was read from either a file or URL."""
 
         # Let the user know what's going on.
         self.verbose_print("Parsing " + url + "...")
 
         # Parse the page.
-        soup = BeautifulSoup(content, 'html5lib')
+        soup = BeautifulSoup(raw_content, 'html5lib')
 
         # Let the website object extract whatever information it wants from the page.
-        blob = None
+        extracted_content = None
         for website_obj in self.website_objs:
-            blob = website_obj.parse(url, soup)
+            extracted_content = website_obj.parse(url, soup)
 
         # Harvest any new URLs.
         urls_to_crawl = []
         for a in soup.find_all('a', href=True):
             urls_to_crawl.append(a['href'])
         urls_to_crawl = list(dict.fromkeys(urls_to_crawl)) # Remove duplicates
-        return blob, urls_to_crawl
+        return extracted_content, urls_to_crawl
 
     def visit_new_urls(self, parent_url, urls_to_crawl, current_depth):
         """Visits URLs that we haven't visited yet."""
@@ -172,7 +172,7 @@ class Crawler(object):
             content = f.read()
 
             # Crawl the content.
-            blob, urls_to_crawl = self.parse_content("", content)
+            extracted_content, urls_to_crawl = self.parse_content("", content)
 
             # Visit the fresh URLs.
             self.visit_new_urls(url, urls_to_crawl, 0)
@@ -197,6 +197,7 @@ class Crawler(object):
         if not self.crawl_other_websites:
             root_url = get_url_root(url)
             if root_url != self.seed_url:
+                self.verbose_print("Skipping " + url + " because the settings do not allow us to crawl links outside of the seed location.")
                 return False
 
         # If this URL has given us problems then skip it.
@@ -253,10 +254,10 @@ class Crawler(object):
             if response.status_code == 200:
 
                 # Process the content. Anything the parsing module wants stored will be returned in the blob.
-                blob, urls_to_crawl = self.parse_content(url, response.content)
+                extracted_content, urls_to_crawl = self.parse_content(url, response.content)
 
                 # Note that we visited this webpage.
-                self.create_or_update_database(url, blob)
+                self.create_or_update_database(url, response.content, extracted_content)
 
                 # Make a note of the time.
                 self.last_crawl_time = time.time()
