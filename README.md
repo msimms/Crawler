@@ -15,7 +15,9 @@ python setup.py
 
 ## Results
 
-Have a MongoDB installation handy as results are stored in MongoDB.
+You should have a MongoDB installation handy as results are stored in MongoDB.
+
+The crawler will create a database, creatively called `crawlerdb`, that has a collection called `pages`. The pages collection will contain a document for each page crawled. The crawler will store the URL, last visited timestamp, along with anything added by the website module in the document.
 
 ## Usage
 
