@@ -1,3 +1,5 @@
+[![MIT license](https://img.shields.io/badge/license-MIT-brightgreen.svg)](https://opensource.org/licenses/MIT)
+
 # Crawler
 A modular, extensible, but otherwise fairly simple, web crawler. The basic idea behind this project is to develop a generic web crawler that that has the optional capability of running user-specified modules to parse the data as it is crawled.
 
